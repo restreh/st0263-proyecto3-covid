@@ -243,3 +243,9 @@ La arquitectura define un flujo completo:
 * Consumo (Athena + API)
 
 Esta estructura soporta el objetivo del proyecto de automatizar un pipeline batch de datos COVID-19 en la nube, con separación clara de responsabilidades por zona y servicio.
+
+## 7. Ubicación de scripts de procesamiento en S3
+
+Los scripts de Spark que se ejecutan en EMR se almacenan en:
+
+- `s3://st0263-proyecto3-covid19/scripts/etl_trusted/covid_to_trusted.py`
