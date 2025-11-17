@@ -90,7 +90,7 @@ Los datos en S3 se organizarán en tres zonas: **raw**, **trusted** y **refined*
 
 Supondremos un bucket general llamado:
 
-- `st0263-proyecto3-covid-juanjo`  (nombre de ejemplo, se ajustará al crear el bucket real)
+- `st0263-proyecto3-covid19`
 
 ### 3.1. Zona raw
 
@@ -98,7 +98,7 @@ Objetivo: almacenar los datos tal como llegan, sin transformar.
 
 Ruta base:
 
-- `s3://st0263-proyecto3-covid-juanjo/raw/`
+- `s3://st0263-proyecto3-covid19/raw/`
 
 Subcarpetas principales:
 
@@ -125,7 +125,7 @@ Objetivo: almacenar datos limpios, normalizados y listos para análisis.
 
 Ruta base:
 
-- `s3://st0263-proyecto3-covid-juanjo/trusted/`
+- `s3://st0263-proyecto3-covid19/trusted/`
 
 Subcarpetas y particiones sugeridas:
 
@@ -151,7 +151,7 @@ Objetivo: almacenar salidas analíticas finales, métricas agregadas e indicador
 
 Ruta base:
 
-- `s3://st0263-proyecto3-covid-juanjo/refined/`
+- `s3://st0263-proyecto3-covid19/refined/`
 
 Subcarpetas típicas:
 
