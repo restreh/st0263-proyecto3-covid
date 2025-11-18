@@ -249,3 +249,21 @@ Esta estructura soporta el objetivo del proyecto de automatizar un pipeline batc
 Los scripts de Spark que se ejecutan en EMR se almacenan en:
 
 - `s3://st0263-proyecto3-covid19/scripts/etl_trusted/covid_to_trusted.py`
+
+## 8. Endpoint API Gateway
+
+La capa de consumo expone un endpoint HTTP público usando API Gateway y Lambda:
+
+- URL base (Invoke URL): `https://n0znyvjr0k.execute-api.us-east-1.amazonaws.com/prod`
+- Endpoint de resumen nacional diario:
+  - `GET /resumen-nacional`
+  - `GET /resumen-nacional?fecha=YYYY-MM-DD`
+
+La Lambda `covid_resumen_nacional` ejecuta consultas en Athena sobre la tabla
+`covid_analytics.resumen_nacional_diario` y devuelve un JSON con:
+
+- `fecha`
+- `casos_nuevos_nacional`
+- `casos_acumulados_nacional`
+- `poblacion_total_aprox`
+- `casos_por_100k_nacional`
