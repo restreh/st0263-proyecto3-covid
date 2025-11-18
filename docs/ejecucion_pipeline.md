@@ -36,7 +36,7 @@ En la máquina local o en una VM del lab:
    ```bash
    git clone https://github.com/TU_USUARIO/st0263-proyecto3-covid.git
    cd st0263-proyecto3-covid
-````
+   ```
 
 2. Crear y activar entorno virtual de Python (en Windows):
 
