@@ -255,5 +255,3 @@ Respuesta esperada: igual formato que el caso anterior, pero para la fecha solic
 4. Lambda + API Gateway:
 
    * Exponen resumen nacional diario como JSON a través de un endpoint HTTP.
-
-````
