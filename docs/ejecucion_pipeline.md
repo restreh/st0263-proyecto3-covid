@@ -1,27 +1,3 @@
-Paso 21. Terminar el clúster EMR para no gastar más recursos
-
-1. Entra a la consola de AWS → servicio **EMR**.
-2. Ve a **EMR on EC2** y localiza tu clúster `covid-emr-cluster`.
-3. Marca la casilla a la izquierda del clúster.
-4. Arriba, clic en **Terminate**.
-5. Confirma la terminación.
-6. Espera a que el estado pase a **Terminating** y luego a **Terminated**.
-
-Con eso, dejas de consumir créditos por EMR.
-
----
-
-Paso 22. Documentar cómo ejecutar el pipeline completo (`docs/ejecucion_pipeline.md`)
-
-1. En la terminal del repo (CMD), en la raíz del proyecto:
-
-```cmd
-type NUL > docs\ejecucion_pipeline.md
-```
-
-2. Abre `docs/ejecucion_pipeline.md` en VS Code y pega exactamente esto:
-
-````markdown
 # Guía de ejecución del pipeline completo
 
 Este documento describe, paso a paso, cómo ejecutar el pipeline de datos COVID-19 desde la captura hasta el consumo por API.
