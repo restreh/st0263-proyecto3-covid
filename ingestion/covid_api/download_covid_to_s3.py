@@ -1,5 +1,4 @@
 import os
-import datetime as dt
 
 import requests
 import boto3
@@ -39,11 +38,10 @@ def upload_to_s3(data: bytes, bucket: str, key: str) -> None:
 
 
 def main() -> None:
-    # Fecha de hoy para nombrar el archivo
-    today_str = dt.date.today().strftime("%Y-%m-%d")
-
-    # Nombre del archivo dentro de la carpeta raw/covid/
-    object_key = f"{RAW_PREFIX}/casos_covid_{today_str}.csv"
+    """
+    Downloads the COVID cases file from the API and uploads it to an S3 bucket.
+    """
+    object_key = f"{RAW_PREFIX}/casos_covid.csv"
 
     print("=== Ingesta dataset COVID-19 → S3 (zona raw) ===")
     print(f"Bucket destino: {BUCKET_NAME}")
