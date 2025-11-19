@@ -3,8 +3,9 @@ import os
 import requests
 import boto3
 
-# Endpoint CSV del dataset de casos positivos de COVID-19 en Colombia (Datos Abiertos)
-DATASET_URL = "https://www.datos.gov.co/resource/gt2j-8ykr.csv?$limit=5000000"
+# CSV endpoint for COVID-19 cases in Colombia.
+ROWS_LIMIT = os.getenv("ROWS_LIMIT", 5_000_000)
+DATASET_URL = f"https://www.datos.gov.co/resource/gt2j-8ykr.csv?$limit={ROWS_LIMIT}"
 
 # Prefijo dentro de la zona raw del bucket
 RAW_PREFIX = "raw/covid"
