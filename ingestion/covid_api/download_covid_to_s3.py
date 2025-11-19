@@ -6,13 +6,17 @@ import boto3
 # Endpoint CSV del dataset de casos positivos de COVID-19 en Colombia (Datos Abiertos)
 DATASET_URL = "https://www.datos.gov.co/resource/gt2j-8ykr.csv?$limit=5000000"
 
+# Prefijo dentro de la zona raw del bucket
+RAW_PREFIX = "raw/covid"
+
 # Nombre del bucket S3
 # Usa la variable de entorno COVID_BUCKET_NAME si existe,
 # de lo contrario usa el bucket por defecto del proyecto.
 BUCKET_NAME = os.getenv("COVID_BUCKET_NAME", "st0263-proyecto3-covid19")
 
-# Prefijo dentro de la zona raw del bucket
-RAW_PREFIX = "raw/covid"
+DATA_FILENAME = os.getenv("DATA_FILENAME", "casos_covid.csv")
+
+OBJECT_KEY = f"{RAW_PREFIX}/{DATA_FILENAME}"
 
 
 def download_covid_csv() -> bytes:
@@ -41,19 +45,14 @@ def main() -> None:
     """
     Downloads the COVID cases file from the API and uploads it to an S3 bucket.
     """
-    object_key = f"{RAW_PREFIX}/casos_covid.csv"
+    print(f"bucket: {BUCKET_NAME}")
+    print(f"filename: {DATA_FILENAME}")
+    print(f"object key: {OBJECT_KEY}")
 
-    print("=== Ingesta dataset COVID-19 → S3 (zona raw) ===")
-    print(f"Bucket destino: {BUCKET_NAME}")
-    print(f"Objeto destino: {object_key}")
-
-    # 1. Descargar dataset desde Datos Abiertos
     data = download_covid_csv()
+    upload_to_s3(data, BUCKET_NAME, OBJECT_KEY)
 
-    # 2. Subir archivo descargado a S3
-    upload_to_s3(data, BUCKET_NAME, object_key)
-
-    print("Proceso de ingestión finalizado correctamente.")
+    print("ingest: done")
 
 
 if __name__ == "__main__":
