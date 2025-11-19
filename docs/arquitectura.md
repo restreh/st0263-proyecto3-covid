@@ -118,7 +118,7 @@ Diagrama textual simplificado del flujo:
     | 2) API (Lambda + API GW)
     v
 [Consumo externo]
-````
+```
 
 ---
 
