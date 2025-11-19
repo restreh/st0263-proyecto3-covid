@@ -3,8 +3,11 @@
 ## Curso y contexto
 
 - Curso: ST0263 – Sistemas Distribuidos  
-- Semestre: 7  
-- Estudiante: Juan José Restrepo Higuita  
+- Semestre 2025-2  
+- Estudiantes:
+  - Jerónimo Acosta Acevedo
+  - Luis Miguel Torres Villegas
+  - Juan José Restrepo Higuita  
 
 Este proyecto implementa un pipeline batch de captura, ingesta, procesamiento y publicación de datos relacionados con COVID-19 en Colombia, utilizando servicios de cómputo distribuido y almacenamiento en la nube.
 
