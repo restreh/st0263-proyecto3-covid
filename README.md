@@ -1,13 +1,35 @@
 # Proyecto 3 – Pipeline batch de datos COVID-19 en Colombia
 
-## Curso y contexto
+## Metadata
 
-- Curso: ST0263 – Sistemas Distribuidos  
-- Semestre 2025-2  
-- Estudiantes:
-  - Jerónimo Acosta Acevedo
-  - Luis Miguel Torres Villegas
-  - Juan José Restrepo Higuita  
+<table>
+    <tbody>
+        <tr>
+            <td>Código del curso</td>
+            <td>ST0263</td>
+        </tr>
+        <tr>
+            <td>Nombre del curso</td>
+            <td>Sistemas Distribuidos</td>
+        </tr>
+        <tr>
+            <td>Estudiantes</td>
+            <td>
+                <ol>
+                <li>Jerónimo Acosta Acevedo (<tt>jacostaa1[arroba]eafit.edu.co</tt>)</li>
+                <li>Juan José Restrepo Higuita (<tt>jjrestre10[arroba]eafit.edu.co</tt>)</li>
+                <li>Luis Miguel Torres Villegas (<tt>lmtorresv[arroba]eafit.edu.co</tt>)</li>
+                </ol>
+            </td>
+        </tr>
+        <tr>
+            <td>Profesor</td>
+            <td>Edwin Nelson Montoya Múnera (<tt>emontoya[arroba]eafit.edu.co</tt>)
+        </tr>
+    </tbody>
+</table>
+
+## Breve descripción de la actividad
 
 Este proyecto implementa un pipeline batch de captura, ingesta, procesamiento y publicación de datos relacionados con COVID-19 en Colombia, utilizando servicios de cómputo distribuido y almacenamiento en la nube.
 
