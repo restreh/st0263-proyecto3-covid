@@ -57,53 +57,6 @@ En la máquina local o en una VM del lab:
    aws configure
    ```
 
----
-
-## 3. Cargar datos en zona `raw` de S3
-
-### 3.1. Ingesta de COVID desde Datos Abiertos → `raw/covid`
-
-Ejecutar:
-
-```bash
-venv\Scripts\activate.bat
-python ingestion\covid_api\download_covid_to_s3.py
-```
-
-Resultado esperado en S3:
-
-* `s3://st0263-proyecto3-covid19/raw/covid/casos_covid_YYYY-MM-DD.csv`
-
-### 3.2. Subir CSV "RDS" a `raw/rds`
-
-Si se modifican los CSV locales en `data/rds`, volver a subirlos:
-
-```bash
-venv\Scripts\activate.bat
-python ingestion\upload_rds_csv_to_s3.py
-```
-
-Resultado esperado en S3:
-
-* `s3://st0263-proyecto3-covid19/raw/rds/departamento_demografia.csv`
-* `s3://st0263-proyecto3-covid19/raw/rds/departamento_capacidad_hospitalaria.csv`
-
----
-
-## 4. Ejecutar procesamiento en EMR
-
-### 4.1. Crear clúster EMR
-
-En la consola de AWS (EMR on EC2):
-
-1. Crear clúster nuevo:
-
-   * Nombre: `covid-emr-cluster`
-   * Release: 6.x (por defecto)
-   * Aplicaciones: incluir `Spark`
-   * Roles: `EMR_DefaultRole`, `EMR_EC2_DefaultRole` (roles por defecto)
-2. Esperar hasta que el clúster quede en estado **Waiting**.
-
 ### 4.2. Ejecutar ETL `raw -> trusted` (casos COVID enriquecidos)
 
 Agregar un step:

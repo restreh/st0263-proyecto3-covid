@@ -26,8 +26,6 @@ La arquitectura se organiza alrededor de los siguientes componentes:
 
 4. **Base de datos relacional (RDS)**
    - Motor relacional (por ejemplo, MySQL o PostgreSQL) que almacena:
-     - Tabla `departamento_demografia`.
-     - Tabla `departamento_capacidad_hospitalaria`.
 
 5. **Capa de consumo**
    - Servicio de consultas sobre S3 (por ejemplo, Athena).
@@ -227,22 +225,6 @@ Diagrama textual simplificado del flujo:
 
   * Los datos en S3 se organizan por fecha de proceso y/o fecha de los datos.
   * Se conservan los datos originales en `raw` para permitir reprocesos si es necesario.
-
----
-
-## 6. Resumen
-
-La arquitectura define un flujo completo:
-
-* Fuentes (COVID + RDS)
-* S3 `raw`
-* EMR/Spark (ETL)
-* S3 `trusted`
-* EMR/Spark (analítica)
-* S3 `refined`
-* Consumo (Athena + API)
-
-Esta estructura soporta el objetivo del proyecto de automatizar un pipeline batch de datos COVID-19 en la nube, con separación clara de responsabilidades por zona y servicio.
 
 ## 7. Ubicación de scripts de procesamiento en S3
 
