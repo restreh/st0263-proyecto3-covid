@@ -78,7 +78,7 @@ def main() -> None:
     # Upload to S3
     upload_to_s3(LOCAL_FILE_PATH, BUCKET_NAME, OBJECT_KEY)
 
-    print("ingest: done")
+    print("datos abiertos process: done")
 
 
 if __name__ == "__main__":
