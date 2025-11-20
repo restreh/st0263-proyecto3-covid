@@ -2,8 +2,6 @@ import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
-    upper,
-    trim,
     to_date,
     year,
     month,
@@ -95,26 +93,19 @@ def main():
 
     print(f"read: {df_demog.count()} demographics rows")
 
-    # Normalize department names for join
-    print("normalizing department names")
-    df_covid = df_covid.withColumn(
-        "departamento_nom_norm", upper(trim(col("departamento_nom")))
-    )
-
-    df_demog = df_demog.withColumn(
-        "departamento_norm", upper(trim(col("departamento")))
-    )
-
-    # Join COVID data with demographics by normalized department name
-    print("joining covid data with demographics")
+    # Join COVID data with demographics by DIVIPOLA department code
+    # COVID CSV: 'departamento' column = DIVIPOLA code (e.g., "76" for Valle)
+    # Demographics CSV: 'codigo_departamento' column = DIVIPOLA code (e.g., "05", "91")
+    print("joining covid data with demographics by DIVIPOLA code")
 
     # Use aliases to avoid column name conflicts
     df_covid_aliased = df_covid.alias("covid")
     df_demog_aliased = df_demog.alias("demog")
 
+    # Cast both sides to string to ensure consistent types for join
     df_join = df_covid_aliased.join(
         df_demog_aliased,
-        df_covid_aliased["departamento_nom_norm"] == df_demog_aliased["departamento_norm"],
+        col("covid.departamento").cast("string") == col("demog.codigo_departamento").cast("string"),
         how="left",
     )
 
@@ -141,10 +132,10 @@ def main():
         col("anio"),
         col("mes"),
         col("dia"),
-        col("covid.departamento").alias("codigo_divipola_departamento"),  # DIVIPOLA code from COVID
-        col("covid.departamento_nom"),  # Department name
-        col("covid.ciudad_municipio"),  # DIVIPOLA municipality code
-        col("covid.ciudad_municipio_nom"),  # Municipality name
+        col("covid.departamento").alias("codigo_divipola_departamento"),  # DIVIPOLA department code (e.g., "76")
+        col("covid.departamento_nom"),  # Department name from COVID data (e.g., "VALLE")
+        col("covid.ciudad_municipio").alias("codigo_divipola_municipio"),  # DIVIPOLA municipality code (e.g., "76001")
+        col("covid.ciudad_municipio_nom").alias("nombre_municipio"),  # Municipality name
         col("covid.edad"),
         col("covid.unidad_medida"),
         col("covid.sexo"),
@@ -161,10 +152,10 @@ def main():
         col("covid.tipo_recuperacion"),
         col("covid.per_etn_"),  # Ethnic group code
         col("covid.nom_grupo_"),  # Ethnic group name
-        # Demographics columns (from join)
-        col("demog.codigo_departamento"),  # From demographics CSV
-        col("demog.departamento").alias("departamento_nombre"),  # Department name from demographics
-        col("demog.poblacion"),  # From demographics CSV
+        # Demographics columns (from join) - enrichment data
+        col("demog.codigo_departamento"),  # DIVIPOLA code from demographics (should match covid.departamento)
+        col("demog.departamento").alias("departamento_nombre_normalizado"),  # Standardized department name from demographics
+        col("demog.poblacion"),  # Department population for rate calculations
     )
 
     print(f"selected: {len(df_trusted.columns)} columns")

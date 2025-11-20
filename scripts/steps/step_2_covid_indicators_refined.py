@@ -82,18 +82,18 @@ def main():
 
     print(f"read: {df.count()} rows from trusted/covid")
 
-    # Normalize department code and name for aggregations
-    print("normalizing department fields")
-    dept_code = coalesce(
-        col("codigo_departamento").cast("string"), col("departamento").cast("string")
-    ).alias("codigo_departamento_norm")
-
-    dept_name = coalesce(col("departamento"), col("departamento_nom")).alias(
-        "nombre_departamento_norm"
-    )
-
-    df_norm = df.withColumn("codigo_departamento_norm", dept_code).withColumn(
-        "nombre_departamento_norm", dept_name
+    # Use DIVIPOLA department code and standardized name from demographics
+    # The trusted zone has both the original COVID name and the normalized demographics name
+    print("preparing department fields for aggregation")
+    df_norm = df.withColumn(
+        "codigo_departamento_norm",
+        coalesce(
+            col("codigo_departamento").cast("string"),
+            col("codigo_divipola_departamento").cast("string")
+        )
+    ).withColumn(
+        "nombre_departamento_norm",
+        coalesce(col("departamento_nombre_normalizado"), col("departamento_nom"))
     )
 
     # Aggregate daily cases by department
