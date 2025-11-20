@@ -13,7 +13,7 @@ RAW_PREFIX = "raw/covid"
 # Nombre del bucket S3
 # Usa la variable de entorno COVID_BUCKET_NAME si existe,
 # de lo contrario usa el bucket por defecto del proyecto.
-BUCKET_NAME = os.getenv("COVID_BUCKET_NAME", "st0263-proyecto3-covid19")
+BUCKET_NAME = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
 
 DATA_FILENAME = os.getenv("DATA_FILENAME", "casos_covid.csv")
 

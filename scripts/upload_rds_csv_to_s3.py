@@ -1,7 +1,7 @@
 import os
 import boto3
 
-BUCKET_NAME = os.getenv("COVID_BUCKET_NAME", "st0263-proyecto3-covid19")
+BUCKET_NAME = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
 
 LOCAL_RDS_DIR = "data/rds"
 RAW_RDS_PREFIX = "raw/rds"

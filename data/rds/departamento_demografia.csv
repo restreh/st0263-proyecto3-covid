@@ -1,4 +1,34 @@
-codigo_departamento,nombre_departamento,region,poblacion,anio_corte
-05,ANTIOQUIA,ANDINA,6591000,2020
-11,BOGOTA D.C.,ANDINA,7744000,2020
-13,BOLIVAR,CARIBE,2128000,2020
+codigo_departamento,Departamento,poblacion
+91,Amazonas,79508  
+05,Antioquia,6677930  
+81,Arauca,297111  
+08,Atlántico,2722128  
+11,Bogotá D.C.,7743955  
+13,Bolívar,2180976  
+15,Boyacá,1242731  
+17,Caldas,1018453  
+18,Caquetá,410521  
+85,Casanare,435195  
+19,Cauca,1491937  
+20,Cesar,1295387  
+27,Chocó,544764  
+23,Córdoba,1828947  
+25,Cundinamarca,3242999  
+94,Guainía,52466  
+95,Guaviare,127796  
+41,Huila,1122622  
+44,La Guajira,965718  
+47,Magdalena,1427026  
+50,Meta,1063454  
+52,Nariño,1627589  
+54,Norte de Santander,1620318  
+86,Putumayo,358885  
+63,Quindío,555401  
+66,Risaralda,961055  
+88,San Andrés y Providencia,65017  
+68,Santander,2280908  
+70,Sucre,949252  
+73,Tolima,1339998  
+76,Valle del Cauca,4532152  
+97,Vaupés,45601  
+99,Vichada,112958  
