@@ -28,7 +28,7 @@ main() {
 
     # Install dependencies
     echo "installing requirements from $REQUIREMENTS"
-    pip install -r "$REQUIREMENTS"
+    pip install -q -r "$REQUIREMENTS"
     echo "install: done"
 
     # Step 1: Ingest raw data to S3
