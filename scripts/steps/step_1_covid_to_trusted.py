@@ -86,7 +86,7 @@ def main():
         .csv(raw_demog_path)
     )
 
-    print("read: demographics loaded")
+    print(f"read: {df_demog.count()} demographics rows")
 
     # Normalize department names for join
     print("normalizing department names")
@@ -98,11 +98,16 @@ def main():
         "departamento_norm", upper(trim(col("departamento")))
     )
 
-    # Join COVID data with demographics
+    # Join COVID data with demographics by normalized department name
     print("joining covid data with demographics")
-    df_join = df_covid.join(
-        df_demog,
-        df_covid.departamento_nom_norm == df_demog.departamento_norm,
+
+    # Use aliases to avoid column name conflicts
+    df_covid_aliased = df_covid.alias("covid")
+    df_demog_aliased = df_demog.alias("demog")
+
+    df_join = df_covid_aliased.join(
+        df_demog_aliased,
+        df_covid_aliased["departamento_nom_norm"] == df_demog_aliased["departamento_norm"],
         how="left",
     )
 
@@ -111,40 +116,55 @@ def main():
     # Parse dates and add partitioning columns
     print("adding date partitioning columns")
     df_join = (
-        df_join.withColumn("fecha_reporte_web_date", to_date(col("fecha_reporte_web")))
+        df_join.withColumn("fecha_reporte_web_date", to_date(col("covid.fecha_reporte_web")))
         .withColumn("anio", year(col("fecha_reporte_web_date")))
         .withColumn("mes", month(col("fecha_reporte_web_date")))
         .withColumn("dia", dayofmonth(col("fecha_reporte_web_date")))
     )
 
-    # Select relevant columns
-    columnas = [
-        "id_de_caso",
-        "fecha_reporte_web_date",
-        "anio",
-        "mes",
-        "dia",
-        "departamento",
-        "departamento_nom",
-        "ciudad_municipio",
-        "ciudad_municipio_nom",
-        "edad",
-        "unidad_medida",
-        "sexo",
-        "fuente_tipo_contagio",
-        "ubicacion",
-        "estado",
-        "recuperado",
-        "fecha_muerte",
-        "fecha_recuperado",
-        "codigo_departamento",
-        "departamento",
-        "poblacion",
-    ]
-
-    df_trusted = df_join.select(*[c for c in columnas if c in df_join.columns])
+    # Select relevant columns from COVID data and demographics
+    # Use explicit table aliases to avoid ambiguity
+    print("selecting columns")
+    df_trusted = df_join.select(
+        # COVID columns from API
+        col("covid.id_de_caso"),
+        col("covid.fecha_reporte_web"),
+        col("fecha_reporte_web_date"),
+        col("covid.fecha_de_notificaci_n"),
+        col("anio"),
+        col("mes"),
+        col("dia"),
+        col("covid.departamento").alias("codigo_divipola_departamento"),  # DIVIPOLA code from COVID
+        col("covid.departamento_nom"),  # Department name
+        col("covid.ciudad_municipio"),  # DIVIPOLA municipality code
+        col("covid.ciudad_municipio_nom"),  # Municipality name
+        col("covid.edad"),
+        col("covid.unidad_medida"),
+        col("covid.sexo"),
+        col("covid.fuente_tipo_contagio"),
+        col("covid.ubicacion"),
+        col("covid.estado"),
+        col("covid.pais_viajo_1_cod"),
+        col("covid.pais_viajo_1_nom"),
+        col("covid.recuperado"),
+        col("covid.fecha_inicio_sintomas"),
+        col("covid.fecha_muerte"),
+        col("covid.fecha_diagnostico"),
+        col("covid.fecha_recuperado"),
+        col("covid.tipo_recuperacion"),
+        col("covid.per_etn_"),  # Ethnic group code
+        col("covid.nom_grupo_"),  # Ethnic group name
+        # Demographics columns (from join)
+        col("demog.codigo_departamento"),  # From demographics CSV
+        col("demog.departamento").alias("departamento_nombre"),  # Department name from demographics
+        col("demog.poblacion"),  # From demographics CSV
+    )
 
     print(f"selected: {len(df_trusted.columns)} columns")
+
+    # Repartition to reduce number of output files and improve write performance
+    print("repartitioning data")
+    df_trusted = df_trusted.repartition(8, "anio", "mes", "dia")
 
     trusted_path = f"s3://{BUCKET}/{TRUSTED_COVID_PREFIX}"
 
