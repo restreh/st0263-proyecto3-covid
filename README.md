@@ -93,7 +93,7 @@ De forma resumida, la arquitectura se compone de las siguientes etapas:
 ### 2.4 Mejores prácticas utilizadas
 
 En vez de realizar las consultas una a una, se empleó un AWS EMR cluster para el procesamiento de los datasets. Esto se logró con la ayuda de Hadoop Spark, el cual se usó a través de un SDK y la API PySpark.
-Los archivos se almacenaron en S3, asegurando consistencia de datos, y las consultas se realizaron a través de AWS Glue, lo cual automatizó la visualización de los datos. 
+Los archivos se almacenaron en S3, asegurando consistencia de datos, y las consultas se realizaron a través de AWS Glue, lo cual automatizó la visualización de los datos.
 
 ## 3. Descripción del ambiente de desarrollo y técnico
 
@@ -165,3 +165,678 @@ desarrollar el proyecto o la actividad.
 *
 * [Nombre de la página](sitio-N-url)
 -->
+
+<details>
+<summary>
+Arquitectura
+</summary>
+
+--- ARQUITECTURA COMIENZA
+
+# Arquitectura general del pipeline de datos
+
+Este documento describe la arquitectura técnica del pipeline batch de datos COVID-19 en Colombia, incluyendo las fuentes de datos, las zonas de almacenamiento en S3, los procesos de cómputo distribuido y la capa de consumo.
+
+---
+
+## 1. Componentes principales
+
+La arquitectura se organiza alrededor de los siguientes componentes:
+
+1. **Fuentes de datos**
+   - Dataset de casos de COVID-19 en Colombia (datos abiertos).
+   - Base de datos relacional (RDS) con tablas demográficas y de capacidad hospitalaria por departamento.
+
+2. **Almacenamiento en S3**
+   - Buckets o bucket principal para el proyecto, organizado en tres zonas:
+     - `raw`
+     - `trusted`
+     - `refined`
+
+3. **Cómputo distribuido**
+   - Clúster EMR ejecutando Spark para:
+     - Ingestar datos desde las fuentes.
+     - Realizar procesos ETL batch.
+     - Generar salidas analíticas.
+
+4. **Base de datos relacional (RDS)**
+   - Motor relacional (por ejemplo, MySQL o PostgreSQL) que almacena:
+
+5. **Capa de consumo**
+   - Servicio de consultas sobre S3 (por ejemplo, Athena).
+   - API basada en Lambda + API Gateway que expone ciertos resultados refinados.
+
+---
+
+## 2. Vista de alto nivel del flujo de datos
+
+El flujo de datos se puede describir en cinco etapas principales:
+
+1. **Captura**
+   - Lectura/descarga del dataset de COVID-19 desde la fuente oficial de datos abiertos.
+   - Inserción de datos complementarios en RDS (población, capacidad hospitalaria, etc.).
+
+2. **Ingesta**
+   - Almacenamiento de los archivos de COVID-19 en el bucket S3 en la zona `raw`.
+   - Exportación de extractos desde RDS a archivos (por ejemplo, CSV) almacenados también en la zona `raw`.
+
+3. **Procesamiento ETL**
+   - Jobs Spark en EMR que:
+     - Leen datos desde `raw/covid` y `raw/rds`.
+     - Limpian, normalizan y enriquecen los datos.
+     - Escriben resultados intermedios en la zona `trusted`.
+
+4. **Analítica y refinamiento**
+   - Jobs Spark adicionales que leen desde `trusted` y calculan:
+     - Métricas por departamento, región y país.
+     - Indicadores relativos a la población y a la capacidad hospitalaria.
+   - Los resultados finales se almacenan en la zona `refined`.
+
+5. **Consumo**
+   - Consultas interactivas sobre las tablas/archivos refinados en S3.
+   - API que expone ciertos indicadores listos para usar en aplicaciones externas.
+
+---
+
+## 3. Diagrama lógico del pipeline
+
+Diagrama textual simplificado del flujo:
+
+```text
+[Fuentes de datos]
+    |
+    | 1) Dataset COVID (datos abiertos)
+    | 2) Tablas RDS (demografía, capacidad hospitalaria)
+    v
++--------------------+
+|  Ingesta / Raw     |
++--------------------+
+| S3 raw             |
+|  - raw/covid       |
+|  - raw/rds         |
++--------------------+
+    |
+    | Lectura por Spark en EMR
+    v
++--------------------+
+|  Procesamiento     |
+|  ETL (EMR/Spark)   |
++--------------------+
+    |
+    | Escritura de datos limpios
+    v
++--------------------+
+|  S3 trusted        |
+|  - covid limpio    |
+|  - demografía std  |
+|  - capacidad std   |
++--------------------+
+    |
+    | Lectura para analítica
+    v
++--------------------+
+|  Analítica / ML    |
+|  (EMR/Spark)       |
++--------------------+
+    |
+    | Escritura de métricas
+    v
++--------------------+
+|  S3 refined        |
+|  - indicadores     |
+|  - vistas API      |
++--------------------+
+    |
+    | 1) Consultas (Athena)
+    | 2) API (Lambda + API GW)
+    v
+[Consumo externo]
+```
+
+---
+
+## 4. Detalle por componente
+
+### 4.1. Fuentes de datos
+
+* **Dataset COVID-19**
+
+  * Formato de origen: CSV o similar.
+  * Ubicación de destino inicial: `s3://<bucket>/raw/covid/`.
+  * Contenido principal: fecha, departamento, estado del caso, edad, sexo, tipo de caso, etc.
+
+* **Base de datos RDS**
+
+  * Tablas:
+
+    * `departamento_demografia`
+    * `departamento_capacidad_hospitalaria`
+  * Uso principal: enriquecer los datos de COVID-19 con población y capacidad hospitalaria por departamento.
+
+### 4.2. Almacenamiento en S3
+
+* **Zona raw**
+
+  * Propósito: conservar datos tal cual llegan.
+  * Carpetas:
+
+    * `raw/covid/`
+    * `raw/rds/`
+
+* **Zona trusted**
+
+  * Propósito: datos limpios y normalizados.
+  * Carpetas:
+
+    * `trusted/covid/`
+    * `trusted/demografia/`
+    * `trusted/capacidad_hospitalaria/`
+
+* **Zona refined**
+
+  * Propósito: salidas analíticas finales.
+  * Carpetas:
+
+    * `refined/indicadores_departamento/`
+    * `refined/indicadores_region/`
+    * `refined/indicadores_pais/`
+    * `refined/api_views/`
+
+### 4.3. EMR y jobs de Spark
+
+* Se define un clúster EMR que:
+
+  * Accede al bucket S3 (zonas raw/trusted/refined).
+  * Tiene permisos de lectura/escritura sobre S3 y acceso a RDS.
+* Los jobs de Spark se organizan en dos grupos:
+
+  1. **ETL hacia trusted**:
+
+     * Limpieza y normalización del dataset COVID.
+     * Integración con RDS para agregar códigos y población por departamento.
+  2. **Analítica hacia refined**:
+
+     * Cálculo de métricas diarias y acumuladas.
+     * Cálculo de tasas por población.
+     * Cálculo de indicadores relacionados con capacidad hospitalaria.
+
+### 4.4. RDS
+
+* Motor relacional (MySQL/PostgreSQL).
+* Tablas con claves primarias y foráneas bien definidas.
+* Lectura y escritura:
+
+  * Carga inicial de datos demográficos y de capacidad hospitalaria.
+  * Lecturas periódicas desde Spark para enriquecer los datos.
+
+### 4.5. Capa de consumo
+
+* **Consultas sobre S3**:
+
+  * Herramienta tipo Athena para ejecutar consultas SQL sobre los datos en `trusted` y `refined`.
+* **API**:
+
+  * Lambda que lee datos refinados (directamente de S3 o vía consultas).
+  * API Gateway que define los endpoints para:
+
+    * Obtener indicadores por departamento.
+    * Obtener un resumen nacional diario.
+    * Otras vistas que se definan durante el desarrollo.
+
+---
+
+## 5. Frecuencia y orquestación del pipeline
+
+* **Frecuencia de ejecución**:
+
+  * El pipeline está diseñado para ejecutarse en modo batch, por ejemplo, una vez al día.
+* **Orquestación**:
+
+  * Las ejecuciones pueden dispararse:
+
+    * Manualmente durante el desarrollo.
+    * Mediante programación usando los mecanismos disponibles en el entorno (por ejemplo, steps encadenados en EMR o scripts de automatización).
+* **Trazabilidad**:
+
+  * Los datos en S3 se organizan por fecha de proceso y/o fecha de los datos.
+  * Se conservan los datos originales en `raw` para permitir reprocesos si es necesario.
+
+## 7. Ubicación de scripts de procesamiento en S3
+
+Los scripts de Spark que se ejecutan en EMR se almacenan en:
+
+- `s3://st0263-proyecto3-covid19/scripts/etl_trusted/covid_to_trusted.py`
+
+## 8. Endpoint API Gateway
+
+La capa de consumo expone un endpoint HTTP público usando API Gateway y Lambda:
+
+- URL base (Invoke URL): `https://n0znyvjr0k.execute-api.us-east-1.amazonaws.com/prod`
+- Endpoint de resumen nacional diario:
+  - `GET /resumen-nacional`
+  - `GET /resumen-nacional?fecha=YYYY-MM-DD`
+
+La Lambda `covid_resumen_nacional` ejecuta consultas en Athena sobre la tabla
+`covid_analytics.resumen_nacional_diario` y devuelve un JSON con:
+
+- `fecha`
+- `casos_nuevos_nacional`
+- `casos_acumulados_nacional`
+- `poblacion_total_aprox`
+- `casos_por_100k_nacional`
+
+--- ARQUITECTURA TERMINA
+</details>
+
+<details>
+<summary>
+Ejecución pipeline
+</summary>
+--- EJECUCIÓN PIPELINE COMIENZA
+
+# Guía de ejecución del pipeline completo
+
+Este documento describe, paso a paso, cómo ejecutar el pipeline de datos COVID-19 desde la captura hasta el consumo por API.
+
+---
+
+## 1. Prerrequisitos
+
+1. Cuenta activa en el entorno de AWS Academy del curso.
+2. Bucket S3 creado:
+   - `st0263-proyecto3-covid19`
+   - Con las carpetas:
+     - `raw/`
+     - `trusted/`
+     - `refined/`
+3. Dataset COVID configurado:
+   - Fuente: Datos Abiertos Colombia, dataset `gt2j-8ykr`.
+4. Tablas de tipo "RDS" emuladas como CSV en S3:
+   - `raw/rds/departamento_demografia.csv`
+   - `raw/rds/departamento_capacidad_hospitalaria.csv`
+5. Tabla de Athena creada:
+   - `covid_analytics.indicadores_departamento`
+   - `covid_analytics.resumen_nacional_diario`
+6. Lambda y API Gateway configurados para exponer:
+   - `GET https://n0znyvjr0k.execute-api.us-east-1.amazonaws.com/prod/resumen-nacional`
+   - `GET https://n0znyvjr0k.execute-api.us-east-1.amazonaws.com/prod/resumen-nacional?fecha=YYYY-MM-DD`
+
+---
+
+## 2. Preparar entorno local (una sola vez)
+
+En la máquina local o en una VM del lab:
+
+1. Clonar el repositorio:
+
+   ```bash
+   git clone https://github.com/TU_USUARIO/st0263-proyecto3-covid.git
+   cd st0263-proyecto3-covid
+   ```
+
+2. Crear y activar entorno virtual de Python (en Windows):
+
+   ```bash
+   python -m venv venv
+   venv\Scripts\activate.bat
+   ```
+
+3. Instalar dependencias:
+
+   ```bash
+   pip install requests boto3
+   ```
+
+4. Configurar credenciales de AWS CLI (si no se ha hecho antes):
+
+   ```bash
+   aws configure
+   ```
+
+### 4.2. Ejecutar ETL `raw -> trusted` (casos COVID enriquecidos)
+
+Agregar un step:
+
+* **Step type**: `Custom JAR`
+
+* **Name**: `covid-raw-to-trusted`
+
+* **JAR**: `command-runner.jar`
+
+* **Arguments**:
+
+  ```text
+  spark-submit s3://st0263-proyecto3-covid19/scripts/etl_trusted/covid_to_trusted.py
+  ```
+
+* **Action on failure**: `Cancel and wait`
+
+Esperar a que el step termine en **Completed**.
+
+Resultado esperado en S3:
+
+* `s3://st0263-proyecto3-covid19/trusted/covid/anio=.../mes=.../dia=.../*.parquet`
+
+### 4.3. Ejecutar analítica `trusted -> refined/indicadores_departamento`
+
+Agregar un step:
+
+* **Step type**: `Custom JAR`
+* **Name**: `covid-trusted-to-refined-indicadores`
+* **JAR**: `command-runner.jar`
+* **Arguments**:
+
+  ```text
+  spark-submit s3://st0263-proyecto3-covid19/scripts/analytics_refined/covid_indicators_refined.py
+  ```
+
+Esperar **Completed**.
+
+Resultado esperado en S3:
+
+* `s3://st0263-proyecto3-covid19/refined/indicadores_departamento/anio=.../mes=.../dia=.../*.parquet`
+
+### 4.4. Ejecutar vista API `refined/indicadores_departamento -> refined/api_views/resumen_nacional_diario`
+
+Agregar un step:
+
+* **Step type**: `Custom JAR`
+* **Name**: `covid-resumen-nacional-diario`
+* **JAR**: `command-runner.jar`
+* **Arguments**:
+
+  ```text
+  spark-submit s3://st0263-proyecto3-covid19/scripts/api_views/resumen_nacional_diario.py
+  ```
+
+Esperar **Completed**.
+
+Resultado esperado en S3:
+
+* `s3://st0263-proyecto3-covid19/refined/api_views/resumen_nacional_diario/anio=.../mes=.../dia=.../*.parquet`
+
+### 4.5. Terminar el clúster EMR
+
+Cuando todos los steps terminen correctamente, terminar el clúster:
+
+* En EMR → seleccionar `covid-emr-cluster` → **Terminate**.
+
+---
+
+## 5. Actualizar particiones en Athena
+
+En el editor de consultas de Athena:
+
+1. Seleccionar base de datos:
+
+   ```sql
+   USE covid_analytics;
+   ```
+
+2. Reparar particiones de indicadores por departamento:
+
+   ```sql
+   MSCK REPAIR TABLE indicadores_departamento;
+   ```
+
+3. Reparar particiones de resumen nacional diario:
+
+   ```sql
+   MSCK REPAIR TABLE resumen_nacional_diario;
+   ```
+
+4. Probar consultas:
+
+   ```sql
+   SELECT * FROM indicadores_departamento ORDER BY fecha, codigo_departamento LIMIT 50;
+
+   SELECT * FROM resumen_nacional_diario ORDER BY fecha LIMIT 50;
+   ```
+
+---
+
+## 6. Consumir el resumen nacional por API
+
+### 6.1. Último día disponible
+
+Request:
+
+```text
+GET https://n0znyvjr0k.execute-api.us-east-1.amazonaws.com/prod/resumen-nacional
+```
+
+Respuesta (ejemplo):
+
+```json
+{
+  "fecha": "2023-10-04",
+  "casos_nuevos_nacional": 1,
+  "casos_acumulados_nacional": 91712,
+  "poblacion_total_aprox": null,
+  "casos_por_100k_nacional": null
+}
+```
+
+### 6.2. Fecha específica
+
+Request:
+
+```text
+GET https://n0znyvjr0k.execute-api.us-east-1.amazonaws.com/prod/resumen-nacional?fecha=2023-10-04
+```
+
+Respuesta esperada: igual formato que el caso anterior, pero para la fecha solicitada. Si no hay datos para esa fecha, la API devuelve un 404 con mensaje de error.
+
+---
+
+## 7. Resumen del flujo
+
+1. Ingesta COVID + CSV “RDS” → `raw/` (scripts Python locales).
+2. EMR + Spark:
+
+   * `raw -> trusted` (enriquecimiento y limpieza).
+   * `trusted -> refined/indicadores_departamento` (métricas por departamento).
+   * `refined/indicadores_departamento -> refined/api_views/resumen_nacional_diario` (resumen nacional).
+3. Athena:
+
+   * Tablas externas sobre `refined/`.
+   * Consultas SQL interactivas.
+4. Lambda + API Gateway:
+
+   * Exponen resumen nacional diario como JSON a través de un endpoint HTTP.
+
+
+--- EJECUCIÓN PIPELINE TERMINA
+</details>
+
+<details>
+<summary>
+Fuente de datos
+</summary>
+
+--- FUENTE DE DATOS COMIENZA
+
+# Fuente de datos principal de COVID-19 en Colombia
+
+## 1. Identificación del dataset
+
+- **Nombre oficial del dataset:** Casos positivos de COVID-19 en Colombia
+- **Plataforma:** Datos Abiertos Colombia (datos.gov.co)
+- **Entidad responsable:** Instituto Nacional de Salud (INS)
+- **URL de la ficha del dataset:** <https://www.datos.gov.co/Salud-y-Protecci-n-Social/Casos-positivos-de-COVID-19-en-Colombia-/gt2j-8ykr>
+
+Este dataset contiene el registro de casos positivos de COVID-19 reportados en
+Colombia por el INS a través de la plataforma de datos abiertos del gobierno.
+
+## 2. Acceso programático (API)
+
+La plataforma usa Socrata, que expone el dataset mediante endpoints de tipo API.
+El identificador del conjunto de datos es `gt2j-8ykr`. Los endpoints típicos de
+acceso son: `https://www.datos.gov.co/resource/gt2j-8ykr.csv`
+
+Parámetros comunes que se pueden usar sobre estos endpoints (se configurarán más
+adelante en los scripts de ingestión):
+
+- `$select` → seleccionar columnas o aplicar agregaciones.
+- `$where` → filtrar filas.
+- `$limit` y `$offset` → paginar resultados cuando el número de registros es muy
+  grande.
+- `$order` → ordenar resultados.
+
+La autenticación y los límites de consumo dependen de la configuración pública
+del portal de datos abiertos; para el alcance del proyecto se asumirá uso sin
+token personalizado, con los límites por defecto de la plataforma.
+
+## 4. Frecuencia de actualización
+
+Según la descripción del dataset en Datos Abiertos Colombia, la actualización
+pasó a ser semanal cuando el comportamiento de la transmisión entró en una zona
+considerada de seguridad, manteniendo un monitoreo continuo de positividad y
+otros indicadores.
+
+Para el proyecto, se asumirá que:
+
+- El dataset se consulta en modo histórico completo para la primera carga.
+- Las actualizaciones posteriores se podrían hacer de forma incremental usando
+  filtros por fecha de reporte o notificación.
+
+## 5. Decisiones de uso en el proyecto
+
+- Este dataset será la **fuente principal** para la construcción de métricas de
+  casos por departamento, región y país.
+- El campo de departamento (`departamento` y `departamento_nom`) se usará para
+  enlazar con las tablas de RDS (`departamento_demografia` y
+  `departamento_capacidad_hospitalaria`).
+- Las fechas (`fecha_reporte_web`, `fecha_de_notificaci_n`,
+  `fecha_inicio_sintomas`, `fecha_diagnostico`) se utilizarán para construir
+  series de tiempo y particiones por año/mes/día en S3.
+- Los campos de estado (`estado`, `recuperado`, `fecha_muerte`,
+  `fecha_recuperado`) permitirán derivar indicadores como:
+  - Casos activos.
+  - Casos recuperados.
+  - Fallecidos por periodo y por departamento.
+
+Este documento funcionará como referencia para los scripts de ingestión, para el
+diseño de las transformaciones en Spark y para la interpretación de las métricas
+generadas en las zonas `trusted` y `refined`.
+
+
+--- FUENTE DE DATOS TERMINA
+</details>
+
+<details>
+<summary>
+Modelo de datos
+</summary>
+
+--- MODELO DE DATOS COMIENZA
+
+
+# Modelo de datos del proyecto
+
+Este documento describe el modelo de datos propuesto para el Proyecto 3, incluyendo el modelo relacional en RDS y la organización de los datos en S3 (zonas *raw*, *trusted* y *refined*).
+
+---
+
+## 1. Visión general
+
+El pipeline utilizará dos tipos de almacenamiento de datos:
+
+1. **Base de datos relacional (RDS)**
+   - Contendrá información complementaria a los casos de COVID-19, principalmente datos demográficos y de capacidad hospitalaria por departamento.
+   - Se usará para enriquecer los datos del dataset principal de COVID-19 durante el procesamiento en Spark.
+
+2. **Almacenamiento en S3**
+   - Contendrá el dataset principal de COVID-19 y todos los resultados intermedios y finales.
+   - Se dividirá en tres zonas lógicas: **raw**, **trusted** y **refined**.
+
+### 3.2. Zona trusted
+
+Objetivo: almacenar datos limpios, normalizados y listos para análisis.
+
+Ruta base:
+
+- `s3://st0263-proyecto3-covid19/trusted/`
+
+Subcarpetas y particiones sugeridas:
+
+1. Datos de casos COVID-19 limpios:
+   - `trusted/covid/`
+   - Con particiones por año, mes, día, y departamento si es posible.
+   Ejemplo de rutas:
+   - `trusted/covid/anio=2020/mes=01/dia=01/part-0000.snappy.parquet`
+   - `trusted/covid/anio=2020/mes=01/dia=02/part-0001.snappy.parquet`
+   - `trusted/covid/anio=2020/mes=01/dia=01/departamento=05/part-0000.snappy.parquet`
+
+2. Datos complementarios estandarizados (a partir de RDS):
+   - `trusted/demografia/`
+   - `trusted/capacidad_hospitalaria/`
+
+Formato de archivos recomendado en trusted:
+
+- Parquet (columnar, comprimido), para optimizar consultas y procesamiento.
+
+### 3.3. Zona refined
+
+Objetivo: almacenar salidas analíticas finales, métricas agregadas e indicadores.
+
+Ruta base:
+
+- `s3://st0263-proyecto3-covid19/refined/`
+
+Subcarpetas típicas:
+
+1. Indicadores por departamento y fecha:
+   - `refined/indicadores_departamento/`
+   Ejemplo de métricas:
+   - Casos nuevos diarios por departamento.
+   - Casos acumulados por departamento.
+   - Casos por 100.000 habitantes.
+   - Porcentaje de ocupación UCI aproximado (combinando información COVID + capacidad).
+
+   Ejemplo de rutas:
+   - `refined/indicadores_departamento/anio=2020/mes=01/dia=01/part-0000.snappy.parquet`
+
+2. Indicadores regionales o nacionales:
+   - `refined/indicadores_region/`
+   - `refined/indicadores_pais/`
+
+3. Tablas específicas para consumo por API:
+   - `refined/api_views/`
+   Ejemplos:
+   - `refined/api_views/top_departamentos_casos_diarios/`
+   - `refined/api_views/resumen_nacional_diario/`
+
+Formato de archivos recomendado en refined:
+
+- Parquet para análisis,
+- Opcionalmente, copias en CSV/JSON si se requiere para consumo directo desde otras herramientas.
+
+---
+
+## 4. Resumen de entidades principales
+
+- **RDS**
+  - `departamento_demografia`
+  - `departamento_capacidad_hospitalaria`
+
+- **S3**
+  - Zona `raw`
+    - `raw/covid/`
+    - `raw/rds/`
+  - Zona `trusted`
+    - `trusted/covid/`
+    - `trusted/demografia/`
+    - `trusted/capacidad_hospitalaria/`
+  - Zona `refined`
+    - `refined/indicadores_departamento/`
+    - `refined/indicadores_region/`
+    - `refined/indicadores_pais/`
+    - `refined/api_views/`
+
+Este modelo servirá como base para el diseño de los procesos de ingestión,
+transformación y publicación de datos en el proyecto.
+
+--- MODELO DE DATOS TERMINA
+
+</details>
