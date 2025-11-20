@@ -52,9 +52,19 @@ def upload_to_s3(file_path: Path, bucket: str, key: str) -> None:
         bucket: S3 bucket name
         key: S3 object key
     """
-    print(f"uploading to s3://{bucket}/{key}")
     s3 = boto3.client("s3")
 
+    # Check if file already exists in S3
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        print(f"upload: skipped (file exists at s3://{bucket}/{key})")
+        return
+    except s3.exceptions.ClientError as e:
+        # 404 means file doesn't exist, continue with upload
+        if e.response['Error']['Code'] != '404':
+            raise
+
+    print(f"uploading to s3://{bucket}/{key}")
     with open(file_path, "rb") as f:
         s3.put_object(Bucket=bucket, Key=key, Body=f)
 
