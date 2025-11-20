@@ -158,3 +158,10 @@ def run_steps():
             VisibleToAllUsers=True,
         )
         print(f"Nuevo clúster lanzado con ID: {response['JobFlowId']}")
+
+
+def main():
+    run_steps()
+
+if __name__ == "__main__":
+    main()
