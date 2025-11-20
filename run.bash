@@ -6,7 +6,7 @@ echo "activating venv: $VENV"
 source "$VENV/bin/activate"
 
 echo "installing requirements..."
-pip install -r requirements.xt
+pip install -r requirements.txt
 
 BUCKET='jacostaa1datalake'
 
