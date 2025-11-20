@@ -16,6 +16,43 @@ RAW_COVID_PREFIX = "raw/covid"
 RAW_RDS_PREFIX = "raw/rds"
 TRUSTED_COVID_PREFIX = "trusted/covid"
 
+# Constants - Hadoop AWS packages for local Spark S3 access
+# PySpark 4.0.1 uses Hadoop 3.4.0, so match that version
+HADOOP_AWS_VERSION = "3.4.0"
+AWS_SDK_VERSION = "1.12.367"
+
+
+def create_spark_session(app_name: str):
+    """
+    Create Spark session with S3 support for local execution.
+
+    For local development, includes Hadoop AWS and AWS SDK packages.
+    For EMR, these packages are already available.
+
+    Args:
+        app_name: Name for the Spark application
+
+    Returns:
+        Configured SparkSession
+    """
+    builder = SparkSession.builder.appName(app_name)
+
+    # Add AWS packages and configuration for local S3 access (not needed on EMR)
+    if os.getenv("SPARK_LOCAL", "false").lower() == "true":
+        builder = (
+            builder.config(
+                "spark.jars.packages",
+                f"org.apache.hadoop:hadoop-aws:{HADOOP_AWS_VERSION},"
+                f"com.amazonaws:aws-java-sdk-bundle:{AWS_SDK_VERSION}"
+            )
+            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            .config("spark.hadoop.fs.s3.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            .config("spark.hadoop.fs.s3a.aws.credentials.provider",
+                    "com.amazonaws.auth.DefaultAWSCredentialsProviderChain")
+        )
+
+    return builder.getOrCreate()
+
 
 def main():
     """
@@ -28,9 +65,9 @@ def main():
     4. Add date partitioning columns
     5. Write cleaned data to trusted zone as Parquet
     """
-    spark = SparkSession.builder.appName("covid_raw_to_trusted").getOrCreate()
+    spark = create_spark_session("covid_raw_to_trusted")
 
-    raw_covid_path = f"s3://{BUCKET}/{RAW_COVID_PREFIX}/*.csv"
+    raw_covid_path = f"s3://{BUCKET}/{RAW_COVID_PREFIX}/casos_covid.csv"
     raw_demog_path = f"s3://{BUCKET}/{RAW_RDS_PREFIX}/poblacion.csv"
 
     print(f"reading covid cases from {raw_covid_path}")

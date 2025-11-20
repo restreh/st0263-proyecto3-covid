@@ -13,6 +13,43 @@ BUCKET = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
 REFINED_INDICADORES_PREFIX = "refined/indicadores_departamento"
 API_VIEW_PREFIX = "refined/api_views/resumen_nacional_diario"
 
+# Constants - Hadoop AWS packages for local Spark S3 access
+# PySpark 4.0.1 uses Hadoop 3.4.0, so match that version
+HADOOP_AWS_VERSION = "3.4.0"
+AWS_SDK_VERSION = "1.12.367"
+
+
+def create_spark_session(app_name: str):
+    """
+    Create Spark session with S3 support for local execution.
+
+    For local development, includes Hadoop AWS and AWS SDK packages.
+    For EMR, these packages are already available.
+
+    Args:
+        app_name: Name for the Spark application
+
+    Returns:
+        Configured SparkSession
+    """
+    builder = SparkSession.builder.appName(app_name)
+
+    # Add AWS packages and configuration for local S3 access (not needed on EMR)
+    if os.getenv("SPARK_LOCAL", "false").lower() == "true":
+        builder = (
+            builder.config(
+                "spark.jars.packages",
+                f"org.apache.hadoop:hadoop-aws:{HADOOP_AWS_VERSION},"
+                f"com.amazonaws:aws-java-sdk-bundle:{AWS_SDK_VERSION}"
+            )
+            .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            .config("spark.hadoop.fs.s3.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+            .config("spark.hadoop.fs.s3a.aws.credentials.provider",
+                    "com.amazonaws.auth.DefaultAWSCredentialsProviderChain")
+        )
+
+    return builder.getOrCreate()
+
 
 def main():
     """
@@ -24,7 +61,7 @@ def main():
     3. Calculate national cases per 100k population
     4. Write summary to refined zone for API consumption
     """
-    spark = SparkSession.builder.appName("covid_resumen_nacional_diario").getOrCreate()
+    spark = create_spark_session("covid_resumen_nacional_diario")
 
     indicadores_path = f"s3://{BUCKET}/{REFINED_INDICADORES_PREFIX}"
     print(f"reading department indicators from {indicadores_path}")
