@@ -20,8 +20,8 @@ AUTOSCALING_ROLE = "arn:aws:iam::653359214338:role/EMR_AutoScaling_DefaultRole"
 # Constants - Network configuration (AWS Academy specific)
 SUBNET_ID = "subnet-03fa5bdd3d96e5460"
 EC2_KEY_NAME = "vockey"
-MASTER_SECURITY_GROUP = "sg-00555deb1e1fa0b3d"
-SLAVE_SECURITY_GROUP = "sg-0b4708aa5749b3945"
+MASTER_SECURITY_GROUP = "sg-046af1dd4f143bf9c"
+SLAVE_SECURITY_GROUP = "sg-00555deb1e1fa0b3d"
 
 # Constants - Spark job scripts
 SCRIPT_1 = f"s3://{S3_BUCKET}/scripts/steps/step_1_covid_to_trusted.py"
