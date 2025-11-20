@@ -1,5 +1,4 @@
 boto3==1.41.0     # The AWS SDK for Python.
 requests==2.31.0  # Human-friendly dev HTTP requests.
-pyspark==4.0.1    # Data processing.
 pymysql==1.1.1    # MySQL database connector.
 pandas==2.2.3     # Data analysis and manipulation.
