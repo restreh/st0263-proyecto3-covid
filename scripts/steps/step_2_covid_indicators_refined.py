@@ -11,43 +11,34 @@ from pyspark.sql.functions import (
 )
 from pyspark.sql.window import Window
 
-BUCKET = os.getenv("COVID_BUCKET_NAME", "st0263-proyecto3-covid19")
+BUCKET = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
 TRUSTED_COVID_PREFIX = "trusted/covid"
 REFINED_INDICADORES_PREFIX = "refined/indicadores_departamento"
 
 
 def main():
-    spark = (
-        SparkSession.builder
-        .appName("covid_trusted_to_refined_indicadores_departamento")
-        .getOrCreate()
-    )
+    spark = SparkSession.builder.appName(
+        "covid_trusted_to_refined_indicadores_departamento"
+    ).getOrCreate()
 
     trusted_path = f"s3://{BUCKET}/{TRUSTED_COVID_PREFIX}"
     print(f"Leyendo datos trusted desde: {trusted_path}")
 
-    df = (
-        spark.read
-        .parquet(trusted_path)
-    )
+    df = spark.read.parquet(trusted_path)
 
     print(f"Filas en trusted/covid: {df.count()}")
 
     # Normalizar código y nombre de departamento para agregaciones
     dept_code = coalesce(
-        col("codigo_departamento").cast("string"),
-        col("departamento").cast("string")
+        col("codigo_departamento").cast("string"), col("departamento").cast("string")
     ).alias("codigo_departamento_norm")
 
-    dept_name = coalesce(
-        col("nombre_departamento"),
-        col("departamento_nom")
-    ).alias("nombre_departamento_norm")
+    dept_name = coalesce(col("nombre_departamento"), col("departamento_nom")).alias(
+        "nombre_departamento_norm"
+    )
 
-    df_norm = (
-        df
-        .withColumn("codigo_departamento_norm", dept_code)
-        .withColumn("nombre_departamento_norm", dept_name)
+    df_norm = df.withColumn("codigo_departamento_norm", dept_code).withColumn(
+        "nombre_departamento_norm", dept_name
     )
 
     # Usar población y región si están disponibles (pueden venir nulos para algunos)
@@ -63,20 +54,13 @@ def main():
         col("poblacion"),
     ]
 
-    df_daily = (
-        df_norm
-        .groupBy(*group_cols)
-        .agg(
-            count("*").alias("casos_nuevos")
-        )
-    )
+    df_daily = df_norm.groupBy(*group_cols).agg(count("*").alias("casos_nuevos"))
 
     # Ventana para calcular acumulados por departamento en el tiempo
     w = Window.partitionBy("codigo_departamento").orderBy("fecha")
 
     df_daily = df_daily.withColumn(
-        "casos_acumulados",
-        Fsum(col("casos_nuevos")).over(w)
+        "casos_acumulados", Fsum(col("casos_nuevos")).over(w)
     )
 
     # Casos por 100.000 habitantes (si hay población disponible)
@@ -84,8 +68,8 @@ def main():
         "casos_por_100k",
         when(
             (col("poblacion").isNotNull()) & (col("poblacion") > 0),
-            (col("casos_acumulados") * lit(100000.0)) / col("poblacion")
-        ).otherwise(lit(None))
+            (col("casos_acumulados") * lit(100000.0)) / col("poblacion"),
+        ).otherwise(lit(None)),
     )
 
     # Orden lógico de columnas
@@ -109,9 +93,7 @@ def main():
     print(f"Escribiendo indicadores en: {refined_path}")
 
     (
-        df_final
-        .write
-        .mode("overwrite")
+        df_final.write.mode("overwrite")
         .partitionBy("anio", "mes", "dia")
         .parquet(refined_path)
     )
