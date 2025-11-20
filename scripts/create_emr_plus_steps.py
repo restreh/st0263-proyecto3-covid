@@ -127,7 +127,7 @@ def create_cluster_with_steps(emr) -> str:
                             {
                                 "VolumeSpecification": {
                                     "VolumeType": "gp2",
-                                    "SizeInGB": 15,
+                                    "SizeInGB": 32,
                                 },
                                 "VolumesPerInstance": 2,
                             }
@@ -144,7 +144,7 @@ def create_cluster_with_steps(emr) -> str:
                             {
                                 "VolumeSpecification": {
                                     "VolumeType": "gp2",
-                                    "SizeInGB": 15,
+                                    "SizeInGB": 32,
                                 },
                                 "VolumesPerInstance": 2,
                             }
@@ -161,7 +161,7 @@ def create_cluster_with_steps(emr) -> str:
                             {
                                 "VolumeSpecification": {
                                     "VolumeType": "gp2",
-                                    "SizeInGB": 15,
+                                    "SizeInGB": 32,
                                 },
                                 "VolumesPerInstance": 2,
                             }
