@@ -35,6 +35,7 @@ main() {
     echo "ingestion: starting"
     python3 scripts/download_covid_to_s3.py
     python3 scripts/upload_csv_to_rds.py
+    python3 scripts/export_rds_to_s3.py
     echo "ingestion: done"
 
     # Step 2: Upload Spark scripts to S3
