@@ -5,6 +5,9 @@ VENV='venv'
 echo "activating venv: $VENV"
 source "$VENV/bin/activate"
 
+echo "installing requirements..."
+pip install -r requirements.xt
+
 BUCKET='jacostaa1datalake'
 
 # Ingestion.
