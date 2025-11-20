@@ -11,8 +11,8 @@ BUCKET='jacostaa1datalake'
 python3 scripts/download_covid_to_s3.py
 python3 scripts/upload_rds_csv_to_s3.py
 
-# Upload steps.
-aws s3 cp scripts/*.py s3://$BUCKET/scripts/
+# Upload scripts to S3 (requires credentials).
+aws s3 cp scripts s3://$BUCKET/scripts/  --recursive --exclude "*" --include "*.py"
 
 # Create EMR cluster.
 python3 scripts/create_emr_plus_steps.py
