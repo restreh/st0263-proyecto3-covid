@@ -1,14 +1,35 @@
 import os
+
 import boto3
 
+# Constants - AWS configuration
 REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_BUCKET = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
+
+# Constants - EMR configuration
+INSTANCE_TYPE = "m4.xlarge"
+CLUSTER_NAME = "CovidCluster"
+EMR_VERSION = "emr-7.11.0"
+IDLE_TIMEOUT = 3600  # 1 hour
+
+# Constants - IAM roles (AWS Academy specific)
+SERVICE_ROLE = "arn:aws:iam::653359214338:role/EMR_DefaultRole"
+JOB_FLOW_ROLE = "EMR_EC2_DefaultRole"
+AUTOSCALING_ROLE = "arn:aws:iam::653359214338:role/EMR_AutoScaling_DefaultRole"
+
+# Constants - Network configuration (AWS Academy specific)
+SUBNET_ID = "subnet-03fa5bdd3d96e5460"
+EC2_KEY_NAME = "vockey"
+MASTER_SECURITY_GROUP = "sg-00555deb1e1fa0b3d"
+SLAVE_SECURITY_GROUP = "sg-0b4708aa5749b3945"
+
+# Constants - Spark job scripts
 SCRIPT_1 = f"s3://{S3_BUCKET}/scripts/steps/step_1_covid_to_trusted.py"
 SCRIPT_2 = f"s3://{S3_BUCKET}/scripts/steps/step_2_covid_indicators_refined.py"
 SCRIPT_3 = f"s3://{S3_BUCKET}/scripts/steps/step_3_resumen_nacional_diario.py"
-INSTANCE_TYPE = "m4.xlarge"
 
-steps = [
+# EMR steps definition
+STEPS = [
     {
         "Name": "etl_trusted",
         "ActionOnFailure": "CONTINUE",
@@ -36,132 +57,188 @@ steps = [
 ]
 
 
-def run_steps():
-    emr = boto3.client("emr", region_name=REGION)
+def find_active_cluster(emr):
+    """
+    Find an active EMR cluster if one exists.
 
+    Args:
+        emr: Boto3 EMR client
+
+    Returns:
+        Cluster ID if found, None otherwise
+    """
     active_clusters = emr.list_clusters(
         ClusterStates=["STARTING", "BOOTSTRAPPING", "RUNNING", "WAITING"]
     )
 
-    # Si hay un clúster activo, agregar steps
     if active_clusters["Clusters"]:
         cluster_id = active_clusters["Clusters"][0]["Id"]
-        print(f"Clúster activo detectado: {cluster_id}")
-        response = emr.add_job_flow_steps(JobFlowId=cluster_id, Steps=steps)
-        print(f"Steps añadidos al clúster {cluster_id}: {response['StepIds']}")
+        print(f"cluster: found active cluster {cluster_id}")
+        return cluster_id
 
-    # Si no, crear uno nuevo con los steps
-    else:
-        print("No se encontró clúster activo. Creando uno nuevo...")
-        response = emr.run_job_flow(
-            Name="CovidCluster",
-            LogUri="s3://{S3_BUCKET}/logs",
-            ReleaseLabel="emr-7.11.0",
-            ServiceRole="arn:aws:iam::653359214338:role/EMR_DefaultRole",
-            JobFlowRole="EMR_EC2_DefaultRole",
-            Instances={
-                "Ec2SubnetIds": ["subnet-03fa5bdd3d96e5460"],
-                "Ec2KeyName": "vockey",
-                "EmrManagedMasterSecurityGroup": "sg-00555deb1e1fa0b3d",
-                "EmrManagedSlaveSecurityGroup": "sg-0b4708aa5749b3945",
-                "InstanceGroups": [
-                    {
-                        "InstanceCount": 1,
-                        "InstanceRole": "TASK",
-                        "Name": "Tarea - 1",
-                        "InstanceType": INSTANCE_TYPE,
-                        "EbsConfiguration": {
-                            "EbsBlockDeviceConfigs": [
-                                {
-                                    "VolumeSpecification": {
-                                        "VolumeType": "gp2",
-                                        "SizeInGB": 15,
-                                    },
-                                    "VolumesPerInstance": 2,
-                                }
-                            ]
-                        },
+    print("cluster: no active cluster found")
+    return None
+
+
+def add_steps_to_cluster(emr, cluster_id: str) -> None:
+    """
+    Add processing steps to an existing EMR cluster.
+
+    Args:
+        emr: Boto3 EMR client
+        cluster_id: ID of the cluster to add steps to
+    """
+    print(f"adding {len(STEPS)} steps to cluster {cluster_id}")
+    response = emr.add_job_flow_steps(JobFlowId=cluster_id, Steps=STEPS)
+    print(f"steps added: {response['StepIds']}")
+
+
+def create_cluster_with_steps(emr) -> str:
+    """
+    Create a new EMR cluster with processing steps.
+
+    Args:
+        emr: Boto3 EMR client
+
+    Returns:
+        ID of the newly created cluster
+    """
+    print(f"creating new emr cluster: {CLUSTER_NAME}")
+
+    response = emr.run_job_flow(
+        Name=CLUSTER_NAME,
+        LogUri=f"s3://{S3_BUCKET}/logs",
+        ReleaseLabel=EMR_VERSION,
+        ServiceRole=SERVICE_ROLE,
+        JobFlowRole=JOB_FLOW_ROLE,
+        Instances={
+            "Ec2SubnetIds": [SUBNET_ID],
+            "Ec2KeyName": EC2_KEY_NAME,
+            "EmrManagedMasterSecurityGroup": MASTER_SECURITY_GROUP,
+            "EmrManagedSlaveSecurityGroup": SLAVE_SECURITY_GROUP,
+            "InstanceGroups": [
+                {
+                    "InstanceCount": 1,
+                    "InstanceRole": "TASK",
+                    "Name": "Task",
+                    "InstanceType": INSTANCE_TYPE,
+                    "EbsConfiguration": {
+                        "EbsBlockDeviceConfigs": [
+                            {
+                                "VolumeSpecification": {
+                                    "VolumeType": "gp2",
+                                    "SizeInGB": 15,
+                                },
+                                "VolumesPerInstance": 2,
+                            }
+                        ]
                     },
-                    {
-                        "InstanceCount": 1,
-                        "InstanceRole": "MASTER",
-                        "Name": "Principal",
-                        "InstanceType": INSTANCE_TYPE,
-                        "EbsConfiguration": {
-                            "EbsBlockDeviceConfigs": [
-                                {
-                                    "VolumeSpecification": {
-                                        "VolumeType": "gp2",
-                                        "SizeInGB": 15,
-                                    },
-                                    "VolumesPerInstance": 2,
-                                }
-                            ]
-                        },
+                },
+                {
+                    "InstanceCount": 1,
+                    "InstanceRole": "MASTER",
+                    "Name": "Master",
+                    "InstanceType": INSTANCE_TYPE,
+                    "EbsConfiguration": {
+                        "EbsBlockDeviceConfigs": [
+                            {
+                                "VolumeSpecification": {
+                                    "VolumeType": "gp2",
+                                    "SizeInGB": 15,
+                                },
+                                "VolumesPerInstance": 2,
+                            }
+                        ]
                     },
-                    {
-                        "InstanceCount": 1,
-                        "InstanceRole": "CORE",
-                        "Name": "Central",
-                        "InstanceType": INSTANCE_TYPE,
-                        "EbsConfiguration": {
-                            "EbsBlockDeviceConfigs": [
-                                {
-                                    "VolumeSpecification": {
-                                        "VolumeType": "gp2",
-                                        "SizeInGB": 15,
-                                    },
-                                    "VolumesPerInstance": 2,
-                                }
-                            ]
-                        },
+                },
+                {
+                    "InstanceCount": 1,
+                    "InstanceRole": "CORE",
+                    "Name": "Core",
+                    "InstanceType": INSTANCE_TYPE,
+                    "EbsConfiguration": {
+                        "EbsBlockDeviceConfigs": [
+                            {
+                                "VolumeSpecification": {
+                                    "VolumeType": "gp2",
+                                    "SizeInGB": 15,
+                                },
+                                "VolumesPerInstance": 2,
+                            }
+                        ]
                     },
-                ],  # Usa los grupos definidos en la conversión
-                "KeepJobFlowAliveWhenNoSteps": True,
-                "TerminationProtected": False,
+                },
+            ],
+            "KeepJobFlowAliveWhenNoSteps": True,
+            "TerminationProtected": False,
+        },
+        Applications=[
+            {"Name": name}
+            for name in [
+                "Flink",
+                "HCatalog",
+                "Hadoop",
+                "Hive",
+                "Hue",
+                "JupyterEnterpriseGateway",
+                "JupyterHub",
+                "Livy",
+                "Spark",
+                "Tez",
+                "Zeppelin",
+            ]
+        ],
+        Configurations=[
+            {
+                "Classification": "jupyter-s3-conf",
+                "Properties": {
+                    "s3.persistence.bucket": S3_BUCKET,
+                    "s3.persistence.enabled": "true",
+                },
             },
-            Applications=[
-                {"Name": name}
-                for name in [
-                    "Flink",
-                    "HCatalog",
-                    "Hadoop",
-                    "Hive",
-                    "Hue",
-                    "JupyterEnterpriseGateway",
-                    "JupyterHub",
-                    "Livy",
-                    "Spark",
-                    "Tez",
-                    "Zeppelin",
-                ]
-            ],
-            Configurations=[
-                {
-                    "Classification": "jupyter-s3-conf",
-                    "Properties": {
-                        "s3.persistence.bucket": S3_BUCKET,
-                        "s3.persistence.enabled": "true",
-                    },
+            {
+                "Classification": "spark-hive-site",
+                "Properties": {
+                    "hive.metastore.client.factory.class": "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"
                 },
-                {
-                    "Classification": "spark-hive-site",
-                    "Properties": {
-                        "hive.metastore.client.factory.class": "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"
-                    },
-                },
-            ],
-            Steps=steps,
-            AutoScalingRole="arn:aws:iam::653359214338:role/EMR_AutoScaling_DefaultRole",
-            ScaleDownBehavior="TERMINATE_AT_TASK_COMPLETION",
-            AutoTerminationPolicy={"IdleTimeout": 3600},
-            VisibleToAllUsers=True,
-        )
-        print(f"Nuevo clúster lanzado con ID: {response['JobFlowId']}")
+            },
+        ],
+        Steps=STEPS,
+        AutoScalingRole=AUTOSCALING_ROLE,
+        ScaleDownBehavior="TERMINATE_AT_TASK_COMPLETION",
+        AutoTerminationPolicy={"IdleTimeout": IDLE_TIMEOUT},
+        VisibleToAllUsers=True,
+    )
+
+    cluster_id = response["JobFlowId"]
+    print(f"cluster created: {cluster_id}")
+    return cluster_id
 
 
-def main():
-    run_steps()
+def main() -> None:
+    """
+    Create or reuse EMR cluster and run Spark processing steps.
+
+    Steps:
+    1. Check if an active EMR cluster exists
+    2. If yes, add processing steps to existing cluster
+    3. If no, create new cluster with steps included
+    """
+    print(f"config: region={REGION}, bucket={S3_BUCKET}")
+    print(f"config: instance_type={INSTANCE_TYPE}, emr_version={EMR_VERSION}")
+
+    emr = boto3.client("emr", region_name=REGION)
+
+    # Try to reuse existing cluster
+    cluster_id = find_active_cluster(emr)
+
+    if cluster_id:
+        add_steps_to_cluster(emr, cluster_id)
+    else:
+        create_cluster_with_steps(emr)
+
+    print("emr orchestration: done")
+
 
 if __name__ == "__main__":
     main()
