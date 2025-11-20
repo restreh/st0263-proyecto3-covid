@@ -6,7 +6,7 @@ set -euo pipefail
 # Constants
 readonly VENV='venv'
 readonly BUCKET='jacostaa1datalake'
-readonly REQUIREMENTS='requirements.txt'
+readonly REQUIREMENTS='requirements/prod.txt'
 
 # Set environment variable for scripts
 export COVID_BUCKET_NAME="$BUCKET"
