@@ -10,7 +10,7 @@ from pyspark.sql.functions import (
     dayofmonth,
 )
 
-# Bucket y prefijos
+# Constants - S3 paths
 BUCKET = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
 RAW_COVID_PREFIX = "raw/covid"
 RAW_RDS_PREFIX = "raw/rds"
@@ -18,46 +18,61 @@ TRUSTED_COVID_PREFIX = "trusted/covid"
 
 
 def main():
+    """
+    Transform raw COVID data to trusted zone with demographic enrichment.
+
+    Steps:
+    1. Read raw COVID cases from S3
+    2. Read demographic data from S3
+    3. Join datasets by normalized department name
+    4. Add date partitioning columns
+    5. Write cleaned data to trusted zone as Parquet
+    """
     spark = SparkSession.builder.appName("covid_raw_to_trusted").getOrCreate()
 
     raw_covid_path = f"s3://{BUCKET}/{RAW_COVID_PREFIX}/*.csv"
-    raw_demog_path = f"s3://{BUCKET}/{RAW_RDS_PREFIX}/departamento_demografia.csv"
+    raw_demog_path = f"s3://{BUCKET}/{RAW_RDS_PREFIX}/poblacion.csv"
 
-    print(f"Leyendo casos COVID desde: {raw_covid_path}")
+    print(f"reading covid cases from {raw_covid_path}")
     df_covid = (
         spark.read.option("header", "true")
         .option("inferSchema", "true")
         .csv(raw_covid_path)
     )
 
-    print(f"Filas COVID (raw): {df_covid.count()}")
+    print(f"read: {df_covid.count()} covid rows")
 
-    print(f"Lectura demografía desde: {raw_demog_path}")
+    print(f"reading demographics from {raw_demog_path}")
     df_demog = (
         spark.read.option("header", "true")
         .option("inferSchema", "true")
         .csv(raw_demog_path)
     )
 
-    # Normalizar nombres de departamento en ambos lados
-    # Campos típicos en dataset COVID: departamento, departamento_nom
+    print("read: demographics loaded")
+
+    # Normalize department names for join
+    print("normalizing department names")
     df_covid = df_covid.withColumn(
         "departamento_nom_norm", upper(trim(col("departamento_nom")))
     )
 
     df_demog = df_demog.withColumn(
-        "nombre_departamento_norm", upper(trim(col("nombre_departamento")))
+        "departamento_norm", upper(trim(col("departamento")))
     )
 
-    # Join por nombre normalizado
+    # Join COVID data with demographics
+    print("joining covid data with demographics")
     df_join = df_covid.join(
         df_demog,
-        df_covid.departamento_nom_norm == df_demog.nombre_departamento_norm,
+        df_covid.departamento_nom_norm == df_demog.departamento_norm,
         how="left",
     )
 
-    # Cast y parse de fechas básicas
-    # Ajusta los nombres si tu dataset trae variantes
+    print("join: done")
+
+    # Parse dates and add partitioning columns
+    print("adding date partitioning columns")
     df_join = (
         df_join.withColumn("fecha_reporte_web_date", to_date(col("fecha_reporte_web")))
         .withColumn("anio", year(col("fecha_reporte_web_date")))
@@ -65,7 +80,7 @@ def main():
         .withColumn("dia", dayofmonth(col("fecha_reporte_web_date")))
     )
 
-    # Seleccionar columnas relevantes + campos demográficos
+    # Select relevant columns
     columnas = [
         "id_de_caso",
         "fecha_reporte_web_date",
@@ -86,24 +101,25 @@ def main():
         "fecha_muerte",
         "fecha_recuperado",
         "codigo_departamento",
-        "nombre_departamento",
-        "region",
+        "departamento",
         "poblacion",
-        "anio_corte",
     ]
 
     df_trusted = df_join.select(*[c for c in columnas if c in df_join.columns])
 
+    print(f"selected: {len(df_trusted.columns)} columns")
+
     trusted_path = f"s3://{BUCKET}/{TRUSTED_COVID_PREFIX}"
 
-    print(f"Escribiendo datos limpios en: {trusted_path}")
+    print(f"writing to {trusted_path}")
     (
         df_trusted.write.mode("overwrite")
         .partitionBy("anio", "mes", "dia")
         .parquet(trusted_path)
     )
 
-    print("ETL raw → trusted completado.")
+    print("write: done")
+    print("etl raw to trusted: done")
     spark.stop()
 
 
