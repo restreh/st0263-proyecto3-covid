@@ -14,7 +14,7 @@ IDLE_TIMEOUT = 3600  # 1 hour
 
 # Constants - IAM roles (AWS Academy specific)
 SERVICE_ROLE = "arn:aws:iam::653359214338:role/EMR_DefaultRole"
-JOB_FLOW_ROLE = "arn:aws:iam::653359214338:role/EMR_EC2_DefaultRole"
+JOB_FLOW_ROLE = "arn:aws:iam::653359214338:instance-profile/EMR_EC2_DefaultRole"
 AUTOSCALING_ROLE = "arn:aws:iam::653359214338:role/EMR_AutoScaling_DefaultRole"
 
 # Constants - Network configuration (AWS Academy specific)
