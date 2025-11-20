@@ -21,7 +21,7 @@
         </tr>
         <tr>
             <td>Profesor</td>
-            <td><a href="https://scholar.google.com/citations?user=BhCMq0oAAAAJ&hl=es">Edwin Nelson Montoya Múnera</a> (<tt>emontoya[at]eafit.edu.co</tt>)
+            <td>Edwin Nelson Montoya Múnera (<tt>emontoya[at]eafit.edu.co</tt>)
         </tr>
     </tbody>
 </table>
