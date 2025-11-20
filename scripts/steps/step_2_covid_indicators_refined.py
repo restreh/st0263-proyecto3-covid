@@ -40,7 +40,8 @@ def create_spark_session(app_name: str):
     # Add AWS packages and configuration for local S3 access (not needed on EMR)
     if os.getenv("SPARK_LOCAL", "false").lower() == "true":
         builder = (
-            builder.config(
+            builder.master("local[2]")  # Use only 2 cores to reduce memory pressure
+            .config(
                 "spark.jars.packages",
                 f"org.apache.hadoop:hadoop-aws:{HADOOP_AWS_VERSION},"
                 f"com.amazonaws:aws-java-sdk-bundle:{AWS_SDK_VERSION}"
@@ -49,6 +50,12 @@ def create_spark_session(app_name: str):
             .config("spark.hadoop.fs.s3.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
             .config("spark.hadoop.fs.s3a.aws.credentials.provider",
                     "com.amazonaws.auth.DefaultAWSCredentialsProviderChain")
+            .config("spark.driver.bindAddress", "127.0.0.1")
+            .config("spark.driver.host", "localhost")
+            .config("spark.driver.memory", "4g")  # Increase driver memory
+            .config("spark.sql.shuffle.partitions", "8")  # Reduce shuffle partitions
+            .config("spark.sql.files.maxPartitionBytes", "128MB")  # Smaller partition size
+            .config("spark.default.parallelism", "8")  # Reduce parallelism
         )
 
     return builder.getOrCreate()
