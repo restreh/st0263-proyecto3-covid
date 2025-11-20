@@ -43,7 +43,7 @@ main() {
     aws s3 cp scripts "s3://$BUCKET/scripts/" \
         --recursive \
         --exclude "*" \
-        --include "*.py" \
+        --include "*.py"
     echo "upload scripts: done"
 
     # Step 3: Create EMR cluster and run processing steps
