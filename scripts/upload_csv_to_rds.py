@@ -13,8 +13,8 @@ RDS_PASSWORD = os.getenv("RDS_PASSWORD")
 RDS_DATABASE = os.getenv("RDS_DATABASE", "datos_complementarios")
 
 # Constants - Local paths
-DATA_DIR = Path(__file__).parent.parent / "data" / "rds"
-CSV_FILENAME = "departamento_demografia.csv"
+DATA_DIR = Path(__file__).parent.parent / "data"
+CSV_FILENAME = "rds_departamento_demografia.csv"
 CSV_FILE_PATH = DATA_DIR / CSV_FILENAME
 
 # Constants - Table configuration
