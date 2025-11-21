@@ -45,9 +45,6 @@ MySQL y consultas analíticas con Athena.
   `refined/analytics/` para trazabilidad. Incluye análisis de distribución por
   edades, tendencias mensuales, desglose por género, hitos epidemiológicos y
   suavizado con promedios móviles.
-
-### 1.2. Aspectos pendientes
-
 - **API Gateway + Lambda**: Endpoint REST para acceso programático a indicadores
   refinados (en desarrollo). Consumirá mismos datos refined que Athena, pero
   mediante HTTP requests en lugar de queries SQL interactivas.
@@ -134,9 +131,9 @@ MySQL y consultas analíticas con Athena.
    `refined_api_views`.
 
 5. **Consumo dual**:
-   - **Athena** (✅ implementado): Consultas SQL interactivas sobre tablas
+   - **Athena**: Consultas SQL interactivas sobre tablas
      catalogadas. Ideal para analistas, data scientists, exploración ad-hoc.
-   - **API Gateway + Lambda** (⚠️ pendiente): Endpoints REST programáticos que
+   - **API Gateway + Lambda**: Endpoints REST programáticos que
      leerán mismos datos refined. Ideal para aplicaciones web/móviles, dashboards
      automatizados.
 
