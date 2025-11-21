@@ -10,9 +10,9 @@ from pyspark.sql.functions import (
 
 # Constants - S3 paths
 BUCKET = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
-RAW_COVID_PREFIX = "raw/covid"
-RAW_RDS_PREFIX = "raw/rds"
-TRUSTED_COVID_PREFIX = "trusted/covid"
+RAW_COVID_PREFIX = "lake/raw/covid"
+RAW_RDS_PREFIX = "lake/raw/rds"
+TRUSTED_COVID_PREFIX = "lake/trusted/covid"
 
 # Constants - Hadoop AWS packages for local Spark S3 access
 # PySpark 4.0.1 uses Hadoop 3.4.0, so match that version

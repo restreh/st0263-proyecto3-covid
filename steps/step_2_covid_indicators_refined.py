@@ -13,8 +13,8 @@ from pyspark.sql.window import Window
 
 # Constants - S3 paths
 BUCKET = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
-TRUSTED_COVID_PREFIX = "trusted/covid"
-REFINED_INDICADORES_PREFIX = "refined/indicadores_departamento"
+TRUSTED_COVID_PREFIX = "lake/trusted/covid"
+REFINED_INDICADORES_PREFIX = "lake/refined/indicadores_departamento"
 
 # Constants - Hadoop AWS packages for local Spark S3 access
 # PySpark 4.0.1 uses Hadoop 3.4.0, so match that version
@@ -80,7 +80,7 @@ def main():
 
     df = spark.read.parquet(trusted_path)
 
-    print(f"read: {df.count()} rows from trusted/covid")
+    print(f"read: {df.count()} rows from lake/trusted/covid")
 
     # Use DIVIPOLA department code and standardized name from demographics
     # The trusted zone has both the original COVID name and the normalized demographics name

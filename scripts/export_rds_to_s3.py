@@ -15,7 +15,7 @@ RDS_DATABASE = os.getenv("RDS_DATABASE", "datos_complementarios")
 
 # Constants - S3 configuration
 BUCKET_NAME = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
-S3_PREFIX = "raw/rds"
+S3_PREFIX = "lake/raw/rds"
 
 # Constants - Export configuration
 TABLES_TO_EXPORT = ["poblacion"]
@@ -147,7 +147,7 @@ def main() -> None:
     1. Validate RDS credentials from environment variables
     2. Connect to RDS MySQL instance
     3. Export each table to local file (CSV or Parquet)
-    4. Upload files to S3 raw/rds/ prefix
+    4. Upload files to S3 lake/raw/rds/ prefix
     """
     print(f"config: host={RDS_HOST}, database={RDS_DATABASE}")
     print(f"config: bucket={BUCKET_NAME}, format={OUTPUT_FORMAT}")

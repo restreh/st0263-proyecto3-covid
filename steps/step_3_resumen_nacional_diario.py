@@ -10,8 +10,8 @@ from pyspark.sql.functions import (
 
 # Constants - S3 paths
 BUCKET = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
-REFINED_INDICADORES_PREFIX = "refined/indicadores_departamento"
-API_VIEW_PREFIX = "refined/api_views/resumen_nacional_diario"
+REFINED_INDICADORES_PREFIX = "lake/refined/indicadores_departamento"
+API_VIEW_PREFIX = "lake/refined/api_views/resumen_nacional_diario"
 
 # Constants - Hadoop AWS packages for local Spark S3 access
 # PySpark 4.0.1 uses Hadoop 3.4.0, so match that version
@@ -74,7 +74,7 @@ def main():
     print(f"reading department indicators from {indicadores_path}")
 
     df = spark.read.parquet(indicadores_path)
-    print(f"read: {df.count()} rows from refined/indicadores_departamento")
+    print(f"read: {df.count()} rows from lake/refined/indicadores_departamento")
 
     # Aggregate to national level by date
     print("aggregating to national level")

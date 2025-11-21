@@ -15,7 +15,7 @@ LOCAL_FILE_PATH = DATA_DIR / LOCAL_FILENAME
 
 # Constants - S3 configuration
 BUCKET_NAME = os.getenv("COVID_BUCKET_NAME", "jacostaa1datalake")
-RAW_PREFIX = "raw/covid"
+RAW_PREFIX = "lake/raw/covid"
 OBJECT_KEY = f"{RAW_PREFIX}/{LOCAL_FILENAME}"
 
 
