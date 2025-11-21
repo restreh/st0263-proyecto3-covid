@@ -40,14 +40,17 @@ MySQL y consultas analíticas con Athena.
   (`anio/mes/dia`) en formato Parquet con compresión Snappy.
 - **Capa de consumo**: Consultas SQL interactivas mediante Athena sobre base de
   datos `refined_api_views` generada por AWS Glue Crawler.
-- **Analítica SQL**: Queries SparkSQL integradas en step 2 para análisis
-  exploratorio (distribución etaria, tendencias mensuales, hitos
-  epidemiológicos).
+- **Analítica con SparkSQL**: 6 queries SQL ejecutadas sobre DataFrames
+  registrados como vistas temporales, persistiendo resultados en
+  `refined/analytics/` para trazabilidad. Incluye análisis de distribución por
+  edades, tendencias mensuales, desglose por género, hitos epidemiológicos y
+  suavizado con promedios móviles.
 
 ### 1.2. Aspectos pendientes
 
 - **API Gateway + Lambda**: Endpoint REST para acceso programático a indicadores
-  refinados (en desarrollo).
+  refinados (en desarrollo). Consumirá mismos datos refined que Athena, pero
+  mediante HTTP requests en lugar de queries SQL interactivas.
 
 ## 2. Arquitectura
 
@@ -67,6 +70,7 @@ MySQL y consultas analíticas con Athena.
 │  ├─ raw/rds/           ← Exportación RDS (poblacion.csv)        │
 │  ├─ trusted/covid/     ← Parquet limpio + join demográfico      │
 │  ├─ refined/indicadores_departamento/  ← Métricas diarias       │
+│  ├─ refined/analytics/ ← Resultados SparkSQL (6 datasets)       │
 │  └─ refined/api_views/resumen_nacional_diario/  ← API views     │
 └────────────────────┬────────────────────────────────────────────┘
                      │ Procesamiento
@@ -110,11 +114,18 @@ MySQL y consultas analíticas con Athena.
    - **Step 1** (`step_1_covid_to_trusted.py`): Lee casos COVID y demografía,
      normaliza departamentos usando códigos DIVIPOLA, agrega columnas de
      particionamiento temporal, escribe Parquet a `trusted/`.
-   - **Step 2** (`step_2_covid_indicators_refined.py`): Agrega casos diarios por
-     departamento, calcula acumulados con window functions, computa tasas por
-     100k habitantes. Ejecuta 6 queries SparkSQL analíticas (distribución
-     etaria, tendencias mensuales, análisis de género, hitos de 1000 casos,
-     promedio móvil 7 días).
+   - **Step 2** (`step_2_covid_indicators_refined.py`): **Procesamiento dual
+     DataFrame/SparkSQL**. Primero usa DataFrame API para agregaciones y window
+     functions (indicadores departamentales). Luego registra DataFrames como
+     vistas SQL temporales y ejecuta 6 queries SparkSQL para análisis
+     exploratorio, persistiendo cada resultado como Parquet en
+     `refined/analytics/`:
+     1. Top 10 departamentos por tasa (CTE + ROW_NUMBER)
+     2. Tendencias mensuales (agregación temporal)
+     3. Distribución por edades (CASE binning + window percentage)
+     4. Desglose por género y letalidad (agregación condicional)
+     5. Hitos de 1000 casos (DATEDIFF milestone tracking)
+     6. Promedio móvil 7 días nacional (window ROWS BETWEEN)
    - **Step 3** (`step_3_resumen_nacional_diario.py`): Agrega indicadores
      departamentales a nivel nacional.
 
@@ -122,8 +133,15 @@ MySQL y consultas analíticas con Athena.
    esquemas de Parquet particionados, crea/actualiza tablas en base de datos
    `refined_api_views`.
 
-5. **Consulta**: Athena permite ejecutar SQL estándar sobre tablas catalogadas.
-   Resultados se almacenan en `s3://bucket/athena/`.
+5. **Consumo dual**:
+   - **Athena** (✅ implementado): Consultas SQL interactivas sobre tablas
+     catalogadas. Ideal para analistas, data scientists, exploración ad-hoc.
+   - **API Gateway + Lambda** (⚠️ pendiente): Endpoints REST programáticos que
+     leerán mismos datos refined. Ideal para aplicaciones web/móviles, dashboards
+     automatizados.
+
+   Ambos consumen **el mismo conjunto de datos** en refined zone, sirviendo
+   distintos perfiles de usuario.
 
 ### 2.3. Patrones implementados
 
@@ -377,10 +395,13 @@ Configuración local automática:
 - Escribe Parquet particionado:
   `lake/trusted/covid/anio=2020/mes=12/dia=31/*.parquet`
 
-**Step 2: trusted → refined/indicadores_departamento**
+**Step 2: trusted → refined (procesamiento dual DataFrame/SparkSQL)**
 (`step_2_covid_indicators_refined.py`)
-- Agrega casos diarios por departamento con `groupBy(fecha,
-  codigo_departamento)`
+
+Este step demuestra **dos paradigmas complementarios de procesamiento Spark**:
+
+**A. DataFrame API (transformaciones principales)**:
+- Agrega casos diarios por departamento con `groupBy(fecha, codigo_departamento)`
 - Window function para acumulados:
   ```python
   Window.partitionBy("codigo_departamento").orderBy("fecha")
@@ -388,13 +409,41 @@ Configuración local automática:
   # casos_nuevos=11, casos_acumulados=68 (5+12+8+32+11)
   ```
 - Calcula tasa por 100k habitantes: `(casos_acumulados * 100000) / poblacion`
-- **Queries SparkSQL integradas** (6 análisis exploratorios):
-  1. Top 10 departamentos por tasa (CTE + ROW_NUMBER)
-  2. Tendencias mensuales por año (agregación temporal)
-  3. Distribución etaria (CASE binning + window percentage)
-  4. Desglose por género y outcomes (letalidad)
-  5. Milestone de 1000 casos (DATEDIFF desde primer caso nacional)
-  6. Promedio móvil 7 días nacional (window ROWS BETWEEN 6 PRECEDING)
+- Escribe resultado principal a `refined/indicadores_departamento/`
+
+**B. SparkSQL (análisis exploratorio con persistencia)**:
+
+Registra DataFrames como vistas temporales (`createOrReplaceTempView`) y ejecuta
+6 queries SQL complejas, **persistiendo cada resultado como Parquet** en
+`refined/analytics/` para trazabilidad y reutilización:
+
+1. **`top_departamentos_tasa/`**: Top 10 departamentos por casos por 100k
+   (última fecha disponible). Usa CTE + `ROW_NUMBER()` window function.
+
+2. **`tendencias_mensuales/`**: Casos mensuales agregados por año, con conteo
+   de departamentos afectados y promedio diario. Análisis temporal macro.
+
+3. **`distribucion_edad/`**: Distribución de casos por grupo etario (0-17, 18-29,
+   30-49, 50-64, 65+) con porcentajes. Usa `CASE` para binning + window
+   aggregation para calcular porcentaje del total.
+
+4. **`desglose_genero/`**: Total casos, fallecidos, recuperados y tasa de
+   letalidad por género. Agregación condicional con `SUM(CASE WHEN...)`.
+
+5. **`hitos_1000_casos/`**: Primera fecha en que cada departamento alcanzó 1000
+   casos acumulados, con días transcurridos desde primer caso nacional
+   (2020-03-06). Milestone tracking con CTEs + `DATEDIFF()`.
+
+6. **`promedio_movil_7dias/`**: Serie temporal nacional con suavizado mediante
+   promedio móvil de 7 días. Window function `ROWS BETWEEN 6 PRECEDING AND
+   CURRENT ROW`.
+
+**Ventajas del enfoque dual**:
+- DataFrame API: Eficiente para transformaciones complejas con schema inferido
+- SparkSQL: Expresividad SQL para análisis ad-hoc, CTEs, window functions
+  anidadas
+- Persistencia: Resultados SQL almacenados permiten auditoría y consultas
+  posteriores sin re-ejecutar análisis completos
 
 **Step 3: refined/indicadores_departamento →
 refined/api_views/resumen_nacional_diario**
@@ -486,6 +535,58 @@ poblacion_total_aprox: bigint
 casos_por_100k_nacional: double
 ```
 
+**`lake/refined/analytics/`** (Resultados SparkSQL)
+
+Directorio con 6 subdirectorios, cada uno conteniendo resultados de queries SQL
+ejecutadas en step 2:
+
+1. **`top_departamentos_tasa/`** - Top 10 departamentos por tasa (10 registros)
+   ```
+   nombre_departamento: string
+   tasa_por_100k: decimal(10,2)
+   casos_totales: bigint
+   ultima_actualizacion: date
+   ```
+
+2. **`tendencias_mensuales/`** - Agregación mensual (~24 registros por 2 años)
+   ```
+   anio, mes: int
+   casos_mensuales: bigint
+   departamentos_afectados: bigint
+   promedio_diario: double
+   ```
+
+3. **`distribucion_edad/`** - Grupos etarios (~6 registros)
+   ```
+   grupo_edad: string ("0-17 años", "18-29 años", etc.)
+   total_casos: bigint
+   porcentaje: double
+   ```
+
+4. **`desglose_genero/`** - Análisis por sexo (~3 registros: M, F, No reportado)
+   ```
+   sexo: string
+   total_casos: bigint
+   fallecidos: bigint
+   recuperados: bigint
+   tasa_letalidad: double
+   ```
+
+5. **`hitos_1000_casos/`** - Milestone tracking (~33 registros máximo)
+   ```
+   nombre_departamento: string
+   fecha_milestone_1000: date
+   dias_desde_primer_caso: int
+   ```
+
+6. **`promedio_movil_7dias/`** - Serie temporal suavizada (todos los días con
+   datos)
+   ```
+   fecha: date
+   casos_nuevos_nacional: bigint
+   promedio_movil_7dias: double
+   ```
+
 ## 7. Variables de entorno
 
 Archivo `.env.example` (template de configuración):
@@ -516,12 +617,19 @@ s3://jacostaa1datalake/
 │   ├── trusted/               # Datos limpios y normalizados
 │   │   └── covid/
 │   │       └── anio=2020/mes=12/dia=31/*.parquet
-│   ├── refined/               # Datos analíticos finales
-│   │   ├── indicadores_departamento/
-│   │   │   └── anio=2020/mes=12/dia=31/*.parquet
-│   │   └── api_views/
-│   │       └── resumen_nacional_diario/
-│   │           └── anio=2020/mes=12/dia=31/*.parquet
+│   └── refined/               # Datos analíticos finales
+│       ├── indicadores_departamento/
+│       │   └── anio=2020/mes=12/dia=31/*.parquet
+│       ├── analytics/         # Resultados SparkSQL (step 2)
+│       │   ├── top_departamentos_tasa/*.parquet
+│       │   ├── tendencias_mensuales/*.parquet
+│       │   ├── distribucion_edad/*.parquet
+│       │   ├── desglose_genero/*.parquet
+│       │   ├── hitos_1000_casos/*.parquet
+│       │   └── promedio_movil_7dias/*.parquet
+│       └── api_views/
+│           └── resumen_nacional_diario/
+│               └── anio=2020/mes=12/dia=31/*.parquet
 ├── steps/                     # Scripts PySpark subidos por run.bash
 │   ├── step_1_covid_to_trusted.py
 │   ├── step_2_covid_indicators_refined.py
