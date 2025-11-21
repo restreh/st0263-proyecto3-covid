@@ -41,12 +41,12 @@ main() {
     echo "ingestion: done"
 
     # Step 2: Upload Spark scripts to S3
-    echo "uploading scripts to s3://$BUCKET/scripts/"
-    aws s3 cp scripts "s3://$BUCKET/scripts/" \
+    echo "uploading steps to s3://$BUCKET/steps/"
+    aws s3 cp steps "s3://$BUCKET/steps/" \
         --recursive \
         --exclude "*" \
         --include "*.py"
-    echo "upload scripts: done"
+    echo "upload steps: done"
 
     # Step 3: Create EMR cluster and run processing steps
     echo "emr: starting cluster and steps"

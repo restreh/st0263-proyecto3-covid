@@ -24,9 +24,9 @@ MASTER_SECURITY_GROUP = "sg-046af1dd4f143bf9c"
 SLAVE_SECURITY_GROUP = "sg-00555deb1e1fa0b3d"
 
 # Constants - Spark job scripts
-SCRIPT_1 = f"s3://{S3_BUCKET}/scripts/steps/step_1_covid_to_trusted.py"
-SCRIPT_2 = f"s3://{S3_BUCKET}/scripts/steps/step_2_covid_indicators_refined.py"
-SCRIPT_3 = f"s3://{S3_BUCKET}/scripts/steps/step_3_resumen_nacional_diario.py"
+SCRIPT_1 = f"s3://{S3_BUCKET}/steps/step_1_covid_to_trusted.py"
+SCRIPT_2 = f"s3://{S3_BUCKET}/steps/step_2_covid_indicators_refined.py"
+SCRIPT_3 = f"s3://{S3_BUCKET}/steps/step_3_resumen_nacional_diario.py"
 
 # EMR steps definition
 STEPS = [
