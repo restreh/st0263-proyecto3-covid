@@ -23,19 +23,31 @@
 
 ## 1. Descripción
 
-Pipeline ETL batch para análisis de datos COVID-19 en Colombia mediante procesamiento distribuido en AWS. Implementa arquitectura medallion (raw/trusted/refined) con EMR Spark, almacenamiento en S3, base de datos RDS MySQL y consultas analíticas con Athena.
+Pipeline ETL batch para análisis de datos COVID-19 en Colombia mediante
+procesamiento distribuido en AWS. Implementa arquitectura medallion
+(raw/trusted/refined) con EMR Spark, almacenamiento en S3, base de datos RDS
+MySQL y consultas analíticas con Athena.
 
 ### 1.1. Aspectos cumplidos
 
-- **Ingesta de datos**: Descarga automática desde API Datos Abiertos Colombia (dataset `gt2j-8ykr`) hacia S3 raw zone con límite configurable (`ROWS_LIMIT`). Carga de datos demográficos complementarios en RDS MySQL.
-- **Procesamiento distribuido**: Tres jobs PySpark en EMR que realizan transformaciones ETL, cálculo de indicadores epidemiológicos (casos nuevos, acumulados, tasa por 100k) y agregaciones nacionales.
-- **Almacenamiento estructurado**: Datos particionados por fecha (`anio/mes/dia`) en formato Parquet con compresión Snappy.
-- **Capa de consumo**: Consultas SQL interactivas mediante Athena sobre base de datos `refined_api_views` generada por AWS Glue Crawler.
-- **Analítica SQL**: Queries SparkSQL integradas en step 2 para análisis exploratorio (distribución etaria, tendencias mensuales, hitos epidemiológicos).
+- **Ingesta de datos**: Descarga automática desde API Datos Abiertos Colombia
+  (dataset `gt2j-8ykr`) hacia S3 raw zone con límite configurable
+  (`ROWS_LIMIT`). Carga de datos demográficos complementarios en RDS MySQL.
+- **Procesamiento distribuido**: Tres jobs PySpark en EMR que realizan
+  transformaciones ETL, cálculo de indicadores epidemiológicos (casos nuevos,
+  acumulados, tasa por 100k) y agregaciones nacionales.
+- **Almacenamiento estructurado**: Datos particionados por fecha
+  (`anio/mes/dia`) en formato Parquet con compresión Snappy.
+- **Capa de consumo**: Consultas SQL interactivas mediante Athena sobre base de
+  datos `refined_api_views` generada por AWS Glue Crawler.
+- **Analítica SQL**: Queries SparkSQL integradas en step 2 para análisis
+  exploratorio (distribución etaria, tendencias mensuales, hitos
+  epidemiológicos).
 
 ### 1.2. Aspectos pendientes
 
-- **API Gateway + Lambda**: Endpoint REST para acceso programático a indicadores refinados (en desarrollo).
+- **API Gateway + Lambda**: Endpoint REST para acceso programático a indicadores
+  refinados (en desarrollo).
 
 ## 2. Arquitectura
 
@@ -43,7 +55,7 @@ Pipeline ETL batch para análisis de datos COVID-19 en Colombia mediante procesa
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Fuentes de datos                                                 │
+│ Fuentes de datos                                                │
 │  • API Datos Abiertos Colombia (casos COVID-19)                 │
 │  • RDS MySQL (demografía por departamento)                      │
 └────────────────────┬────────────────────────────────────────────┘
@@ -61,7 +73,7 @@ Pipeline ETL batch para análisis de datos COVID-19 en Colombia mediante procesa
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ EMR Cluster (emr-7.11.0, m4.xlarge)                             │
-│  • Step 1: raw → trusted (limpieza + join DIVIPOLA)            │
+│  • Step 1: raw → trusted (limpieza + join DIVIPOLA)             │
 │  • Step 2: trusted → refined (indicadores departamentales)      │
 │  • Step 3: refined → api_views (resumen nacional)               │
 └────────────────────┬────────────────────────────────────────────┘
@@ -86,26 +98,46 @@ Pipeline ETL batch para análisis de datos COVID-19 en Colombia mediante procesa
 
 ### 2.2. Ciclo de vida de los datos
 
-1. **Captura**: Script `download_covid_to_s3.py` descarga CSV desde API con límite de 1M registros (configurable via `ROWS_LIMIT`). Datos demográficos se cargan a RDS MySQL via `upload_csv_to_rds.py`.
+1. **Captura**: Script `download_covid_to_s3.py` descarga CSV desde API con
+   límite de 1M registros (configurable via `ROWS_LIMIT`). Datos demográficos se
+   cargan a RDS MySQL via `upload_csv_to_rds.py`.
 
-2. **Exportación RDS**: Script `export_rds_to_s3.py` extrae tabla `poblacion` desde RDS hacia `lake/raw/rds/poblacion.csv`. Esto simula un sistema OLTP del cual se extraen datos complementarios.
+2. **Exportación RDS**: Script `export_rds_to_s3.py` extrae tabla `poblacion`
+   desde RDS hacia `lake/raw/rds/poblacion.csv`. Esto simula un sistema OLTP del
+   cual se extraen datos complementarios.
 
 3. **Transformación ETL**:
-   - **Step 1** (`step_1_covid_to_trusted.py`): Lee casos COVID y demografía, normaliza departamentos usando códigos DIVIPOLA, agrega columnas de particionamiento temporal, escribe Parquet a `trusted/`.
-   - **Step 2** (`step_2_covid_indicators_refined.py`): Agrega casos diarios por departamento, calcula acumulados con window functions, computa tasas por 100k habitantes. Ejecuta 6 queries SparkSQL analíticas (distribución etaria, tendencias mensuales, análisis de género, hitos de 1000 casos, promedio móvil 7 días).
-   - **Step 3** (`step_3_resumen_nacional_diario.py`): Agrega indicadores departamentales a nivel nacional.
+   - **Step 1** (`step_1_covid_to_trusted.py`): Lee casos COVID y demografía,
+     normaliza departamentos usando códigos DIVIPOLA, agrega columnas de
+     particionamiento temporal, escribe Parquet a `trusted/`.
+   - **Step 2** (`step_2_covid_indicators_refined.py`): Agrega casos diarios por
+     departamento, calcula acumulados con window functions, computa tasas por
+     100k habitantes. Ejecuta 6 queries SparkSQL analíticas (distribución
+     etaria, tendencias mensuales, análisis de género, hitos de 1000 casos,
+     promedio móvil 7 días).
+   - **Step 3** (`step_3_resumen_nacional_diario.py`): Agrega indicadores
+     departamentales a nivel nacional.
 
-4. **Catalogación**: Glue Crawler navega `refined/` recursivamente, infiere esquemas de Parquet particionados, crea/actualiza tablas en base de datos `refined_api_views`.
+4. **Catalogación**: Glue Crawler navega `refined/` recursivamente, infiere
+   esquemas de Parquet particionados, crea/actualiza tablas en base de datos
+   `refined_api_views`.
 
-5. **Consulta**: Athena permite ejecutar SQL estándar sobre tablas catalogadas. Resultados se almacenan en `s3://bucket/athena/`.
+5. **Consulta**: Athena permite ejecutar SQL estándar sobre tablas catalogadas.
+   Resultados se almacenan en `s3://bucket/athena/`.
 
 ### 2.3. Patrones implementados
 
-- **Medallion Architecture**: Separación raw (datos brutos) → trusted (limpios) → refined (analíticos).
-- **Particionamiento por fecha**: Optimización de queries con predicados temporales (`WHERE anio=2020 AND mes=12`).
-- **Idempotencia**: Steps EMR usan `.mode("overwrite")` permitiendo re-ejecuciones sin duplicados.
-- **Join por clave normalizada**: Uso de códigos DIVIPOLA (numéricos) en lugar de nombres de departamento (inconsistentes) para garantizar 100% de match demográfico.
-- **Lazy evaluation**: PySpark difiere transformaciones hasta acciones (`.write()`, `.show()`) optimizando plan de ejecución.
+- **Medallion Architecture**: Separación raw (datos brutos) → trusted (limpios)
+  → refined (analíticos).
+- **Particionamiento por fecha**: Optimización de queries con predicados
+  temporales (`WHERE anio=2020 AND mes=12`).
+- **Idempotencia**: Steps EMR usan `.mode("overwrite")` permitiendo
+  re-ejecuciones sin duplicados.
+- **Join por clave normalizada**: Uso de códigos DIVIPOLA (numéricos) en lugar
+  de nombres de departamento (inconsistentes) para garantizar 100% de match
+  demográfico.
+- **Lazy evaluation**: PySpark difiere transformaciones hasta acciones
+  (`.write()`, `.show()`) optimizando plan de ejecución.
 
 ## 3. Ambiente de desarrollo
 
@@ -126,6 +158,7 @@ Pipeline ETL batch para análisis de datos COVID-19 en Colombia mediante procesa
 ### 3.2. Dependencias
 
 Archivo `requirements/prod.txt`:
+
 ```
 boto3==1.41.0     # AWS SDK para Python
 requests==2.31.0  # Cliente HTTP para API Datos Abiertos
@@ -133,7 +166,9 @@ pymysql==1.1.1    # Conector MySQL para RDS
 pandas==2.2.3     # Exportación RDS a CSV/Parquet
 ```
 
-Dependencias Spark (manejadas por EMR, declaradas en steps para ejecución local):
+Dependencias Spark (manejadas por EMR, declaradas en steps para ejecución
+local):
+
 ```python
 # Hadoop AWS para acceso S3 desde PySpark local
 org.apache.hadoop:hadoop-aws:3.4.0
@@ -193,7 +228,9 @@ st0263-proyecto3-covid/
    export SPARK_LOCAL=false  # true para pruebas locales, false para EMR
    ```
 
-   **Nota sobre `SPARK_LOCAL`**: Permite ejecutar jobs PySpark localmente para pruebas rápidas antes del despliegue a EMR (que toma ~25 min). Configuración local usa `local[2]` con 4GB memoria y conectividad S3 via `hadoop-aws`.
+   **Nota sobre `SPARK_LOCAL`**: Permite ejecutar jobs PySpark localmente para
+   pruebas rápidas antes del despliegue a EMR (que toma ~25 min). Configuración
+   local usa `local[2]` con 4GB memoria y conectividad S3 via `hadoop-aws`.
 
 5. **Configurar credenciales AWS CLI**:
    ```bash
@@ -218,7 +255,8 @@ st0263-proyecto3-covid/
    ```bash
    python3 scripts/upload_csv_to_rds.py
    ```
-   Crea tabla `poblacion` con 33 registros (departamentos colombianos + población).
+   Crea tabla `poblacion` con 33 registros (departamentos colombianos +
+   población).
 
 ### 4.3. Ejecución del pipeline completo
 
@@ -267,7 +305,8 @@ Ejecuta secuencialmente:
    - Data source: `s3://jacostaa1datalake/lake/refined/`
    - Recursivo: Sí
    - Target database: `refined_api_views` (crear si no existe)
-   - Ejecutar crawler (detecta tablas `indicadores_departamento`, `resumen_nacional_diario`)
+   - Ejecutar crawler (detecta tablas `indicadores_departamento`,
+     `resumen_nacional_diario`)
 
 5. **Consultar con Athena**:
    ```sql
@@ -322,19 +361,26 @@ Configuración local automática:
 ### 5.1. Transformaciones PySpark
 
 **Step 1: raw → trusted** (`step_1_covid_to_trusted.py`)
-- Lee `lake/raw/covid/casos_covid.csv` (1M registros) y `lake/raw/rds/poblacion.csv` (33 departamentos)
-- **Join crítico**: Usa códigos DIVIPOLA numéricos en lugar de nombres de departamento
+- Lee `lake/raw/covid/casos_covid.csv` (1M registros) y
+  `lake/raw/rds/poblacion.csv` (33 departamentos)
+- **Join crítico**: Usa códigos DIVIPOLA numéricos en lugar de nombres de
+  departamento
   ```python
   # COVID CSV: columna 'departamento' = código DIVIPOLA (ej: "76" para Valle)
   # Demografía: columna 'codigo_departamento' = código DIVIPOLA
   col("covid.departamento").cast("string") == col("demog.codigo_departamento").cast("string")
   ```
-  Esto garantiza 100% de matches vs. ~80% con nombres (inconsistencias: "VALLE" vs "Valle del Cauca", "Bogotá D.C." vs "Bogotá").
-- Agrega columnas de particionamiento: `anio`, `mes`, `dia` extraídas de `fecha_reporte_web`
-- Escribe Parquet particionado: `lake/trusted/covid/anio=2020/mes=12/dia=31/*.parquet`
+  Esto garantiza 100% de matches vs. ~80% con nombres (inconsistencias: "VALLE"
+  vs "Valle del Cauca", "Bogotá D.C." vs "Bogotá").
+- Agrega columnas de particionamiento: `anio`, `mes`, `dia` extraídas de
+  `fecha_reporte_web`
+- Escribe Parquet particionado:
+  `lake/trusted/covid/anio=2020/mes=12/dia=31/*.parquet`
 
-**Step 2: trusted → refined/indicadores_departamento** (`step_2_covid_indicators_refined.py`)
-- Agrega casos diarios por departamento con `groupBy(fecha, codigo_departamento)`
+**Step 2: trusted → refined/indicadores_departamento**
+(`step_2_covid_indicators_refined.py`)
+- Agrega casos diarios por departamento con `groupBy(fecha,
+  codigo_departamento)`
 - Window function para acumulados:
   ```python
   Window.partitionBy("codigo_departamento").orderBy("fecha")
@@ -350,7 +396,9 @@ Configuración local automática:
   5. Milestone de 1000 casos (DATEDIFF desde primer caso nacional)
   6. Promedio móvil 7 días nacional (window ROWS BETWEEN 6 PRECEDING)
 
-**Step 3: refined/indicadores_departamento → refined/api_views/resumen_nacional_diario** (`step_3_resumen_nacional_diario.py`)
+**Step 3: refined/indicadores_departamento →
+refined/api_views/resumen_nacional_diario**
+(`step_3_resumen_nacional_diario.py`)
 - Agrega indicadores departamentales a nivel nacional por fecha
 - Suma casos nuevos y acumulados de todos los departamentos
 - Calcula tasa nacional promedio ponderada por población
@@ -359,25 +407,38 @@ Configuración local automática:
 ### 5.2. Optimizaciones
 
 - **Formato Parquet**: Compresión columnar (Snappy) reduce tamaño ~80% vs CSV
-- **Particionamiento por fecha**: Queries con predicado temporal (`WHERE anio=2020`) solo leen particiones relevantes (partition pruning)
-- **Reparticionamiento pre-escritura**: `.repartition(8, "anio", "mes", "dia")` distribuye uniformemente datos entre archivos, evitando small files problem
-- **Cache de datos locales**: Script `download_covid_to_s3.py` verifica existencia de CSV local antes de descargar (skip si existe)
-- **Verificación S3 pre-upload**: `head_object()` evita re-upload de archivos existentes
-- **Cluster reuse**: `create_emr_plus_steps.py` busca clusters activos antes de crear nuevos (ahorro tiempo/costo)
+- **Particionamiento por fecha**: Queries con predicado temporal (`WHERE
+  anio=2020`) solo leen particiones relevantes (partition pruning)
+- **Reparticionamiento pre-escritura**: `.repartition(8, "anio", "mes", "dia")`
+  distribuye uniformemente datos entre archivos, evitando small files problem
+- **Cache de datos locales**: Script `download_covid_to_s3.py` verifica
+  existencia de CSV local antes de descargar (skip si existe)
+- **Verificación S3 pre-upload**: `head_object()` evita re-upload de archivos
+  existentes
+- **Cluster reuse**: `create_emr_plus_steps.py` busca clusters activos antes de
+  crear nuevos (ahorro tiempo/costo)
 
 ### 5.3. Catalogación con Glue Crawler
 
-Para las búsquedas con Athena, se configuró un crawler que toma los datos hallados en la carpeta `refined/` dentro del datalake en S3 y los convierte en tablas de AWS Glue. Esto se logra gracias a que el crawler puede navegar S3 de manera recursiva, y obtiene los datos de los diferentes directorios generados por los scripts de PySpark. Una vez los datos están en la base de datos `refined_api_views`, estos se pueden visualizar usando consultas con el editor de queries de Athena.
+Para las búsquedas con Athena, se configuró un crawler que toma los datos
+hallados en la carpeta `refined/` dentro del datalake en S3 y los convierte en
+tablas de AWS Glue. Esto se logra gracias a que el crawler puede navegar S3 de
+manera recursiva, y obtiene los datos de los diferentes directorios generados
+por los scripts de PySpark. Una vez los datos están en la base de datos
+`refined_api_views`, estos se pueden visualizar usando consultas con el editor
+de queries de Athena.
 
 Configuración del crawler:
 - **Data source**: `s3://jacostaa1datalake/lake/refined/`
-- **Crawler behavior**: Recursive scan, create table for each top-level partition
+- **Crawler behavior**: Recursive scan, create table for each top-level
+  partition
 - **Schema inference**: Automático desde metadatos Parquet (columnas + tipos)
 - **Partition detection**: Heurística basada en patrón `key=value` en rutas S3
 - **Update behavior**: Add new partitions, update schema if changed
 - **Schedule**: On-demand (manual post-EMR) o programado (diario post-ETL)
 
-Resultado: Tablas `indicadores_departamento` y `resumen_nacional_diario` con particiones `anio`, `mes`, `dia` registradas automáticamente.
+Resultado: Tablas `indicadores_departamento` y `resumen_nacional_diario` con
+particiones `anio`, `mes`, `dia` registradas automáticamente.
 
 ## 6. Esquema de datos
 
@@ -385,7 +446,8 @@ Resultado: Tablas `indicadores_departamento` y `resumen_nacional_diario` con par
 
 **`lake/raw/covid/casos_covid.csv`** (1M registros)
 - Fuente: API Datos Abiertos Colombia (`gt2j-8ykr`)
-- Columnas clave: `id_de_caso`, `fecha_reporte_web`, `departamento` (código DIVIPOLA), `departamento_nom`, `edad`, `sexo`, `estado`, `recuperado`
+- Columnas clave: `id_de_caso`, `fecha_reporte_web`, `departamento` (código
+  DIVIPOLA), `departamento_nom`, `edad`, `sexo`, `estado`, `recuperado`
 
 **`lake/raw/rds/poblacion.csv`** (33 registros)
 - Fuente: Exportación tabla RDS MySQL
@@ -395,7 +457,8 @@ Resultado: Tablas `indicadores_departamento` y `resumen_nacional_diario` con par
 ### 6.2. Trusted zone
 
 **`lake/trusted/covid/`** (Parquet particionado)
-- Schema: Todos los campos originales COVID + campos demográficos (`poblacion`, `departamento_nombre_normalizado`) + particiones (`anio`, `mes`, `dia`)
+- Schema: Todos los campos originales COVID + campos demográficos (`poblacion`,
+  `departamento_nombre_normalizado`) + particiones (`anio`, `mes`, `dia`)
 - Join: Por código DIVIPOLA (garantiza 100% match)
 - Formato: Parquet Snappy, ~1M registros, particionado por `anio/mes/dia`
 
@@ -477,9 +540,11 @@ s3://jacostaa1datalake/
 
 ### 9.1. Métricas del pipeline
 
-- **Volumen procesado**: 1M registros COVID-19 (CSV 350MB → Parquet 45MB comprimido)
+- **Volumen procesado**: 1M registros COVID-19 (CSV 350MB → Parquet 45MB
+  comprimido)
 - **Tiempo ejecución EMR**: ~20-25 minutos (3 steps secuenciales)
-- **Particiones generadas**: ~300 particiones fecha (anio/mes/dia desde marzo 2020)
+- **Particiones generadas**: ~300 particiones fecha (anio/mes/dia desde marzo
+  2020)
 - **Costo aproximado**: $2-3 USD por ejecución completa (EMR 1hr + S3 storage)
 
 ### 9.2. Queries ejemplo Athena
@@ -512,12 +577,14 @@ ORDER BY fecha DESC;
 
 ### 10.1. ¿Por qué RDS si solo se usa CSV?
 
-Requisito del proyecto: simular sistema OLTP con datos complementarios en base relacional. Flujo real:
+Requisito del proyecto: simular sistema OLTP con datos complementarios en base
+relacional. Flujo real:
 1. CSV → RDS MySQL (tabla `poblacion`)
 2. Query desde RDS → exportación a S3 raw
 3. Spark lee desde S3 (no directamente desde RDS)
 
-Esto emula arquitectura típica donde sistemas transaccionales (RDS) alimentan data lakes (S3) mediante exports periódicos.
+Esto emula arquitectura típica donde sistemas transaccionales (RDS) alimentan
+data lakes (S3) mediante exports periódicos.
 
 ### 10.2. ¿Por qué join por DIVIPOLA y no por nombre?
 
@@ -525,7 +592,8 @@ Nombres de departamento inconsistentes entre fuentes:
 - API COVID: "VALLE", "BOGOTA", "ATLANTICO" (mayúsculas, sin tildes)
 - Datos demográficos: "Valle del Cauca", "Bogotá D.C.", "Atlántico"
 
-Códigos DIVIPOLA (estándar DANE Colombia) son numéricos y únicos: "76", "11", "08". Garantizan 100% de matches vs ~80% con normalización de strings.
+Códigos DIVIPOLA (estándar DANE Colombia) son numéricos y únicos: "76", "11",
+"08". Garantizan 100% de matches vs ~80% con normalización de strings.
 
 ### 10.3. ¿Por qué Parquet sobre CSV?
 
@@ -536,15 +604,25 @@ Códigos DIVIPOLA (estándar DANE Colombia) son numéricos y únicos: "76", "11"
 
 ### 10.4. ¿Por qué EMR y no Lambda?
 
-Volumen de datos (1M registros) y operaciones (joins, window functions, agregaciones) exceden límites Lambda (15 min timeout, 10GB memoria). EMR escala horizontalmente con múltiples workers.
+Volumen de datos (1M registros) y operaciones (joins, window functions,
+agregaciones) exceden límites Lambda (15 min timeout, 10GB memoria). EMR escala
+horizontalmente con múltiples workers.
 
 ## 11. Referencias
 
-- [Datos Abiertos Colombia - COVID-19](https://www.datos.gov.co/Salud-y-Protecci-n-Social/Casos-positivos-de-COVID-19-en-Colombia-/gt2j-8ykr): Dataset oficial casos positivos Colombia
-- [Apache Spark Documentation](https://spark.apache.org/docs/latest/): Guías PySpark, SQL, optimización
-- [AWS EMR Best Practices](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan.html): Configuración clusters, auto-scaling, cost optimization
-- [Parquet Format Specification](https://parquet.apache.org/docs/): Especificación técnica formato columnar
-- [AWS Glue Crawler](https://docs.aws.amazon.com/glue/latest/dg/add-crawler.html): Catalogación automática data lakes
+- [Datos Abiertos Colombia -
+  COVID-19](https://www.datos.gov.co/Salud-y-Protecci-n-Social/Casos-positivos-de-COVID-19-en-Colombia-/gt2j-8ykr):
+  Dataset oficial casos positivos Colombia
+- [Apache Spark Documentation](https://spark.apache.org/docs/latest/): Guías
+  PySpark, SQL, optimización
+- [AWS EMR Best
+  Practices](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan.html):
+  Configuración clusters, auto-scaling, cost optimization
+- [Parquet Format Specification](https://parquet.apache.org/docs/):
+  Especificación técnica formato columnar
+- [AWS Glue
+  Crawler](https://docs.aws.amazon.com/glue/latest/dg/add-crawler.html):
+  Catalogación automática data lakes
 - [Códigos DIVIPOLA -
   DANE](https://www.dane.gov.co/index.php/sistema-estadistico-nacional-sen/nomenclaturas-y-clasificaciones/codigos-divipola):
   Estándar colombiano códigos territoriales
