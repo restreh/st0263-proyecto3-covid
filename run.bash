@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Run COVID-19 ETL pipeline: fetch data, upload to S3, process on EMR.
+
 # Exit on error, undefined variables, and pipe failures
 set -euo pipefail
 
